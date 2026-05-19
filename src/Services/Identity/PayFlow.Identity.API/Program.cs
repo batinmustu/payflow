@@ -33,5 +33,6 @@ app.UseStatusCodePages();
 
 app.MapHealthChecks("/health");
 app.MapTenantEndpoints();
+app.MapAuthEndpoints();
 
 app.Run();

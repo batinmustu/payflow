@@ -13,9 +13,11 @@ internal sealed class UserRepository : IUserRepository
     public Task<User?> FindByEmailAsync(Guid tenantId, Email email, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(email);
-        var emailValue = email.Value;
+        // EF translates the whole Email VO comparison through the
+        // HasConversion on UserConfiguration. `u.Email.Value == ...` would
+        // try to project the inner string and fail at translation.
         return _db.Users.FirstOrDefaultAsync(
-            u => u.TenantId == tenantId && u.Email.Value == emailValue,
+            u => u.TenantId == tenantId && u.Email == email,
             ct);
     }
 
