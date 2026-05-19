@@ -21,7 +21,7 @@ docker compose -f deploy/docker-compose.infra.yml up -d
 docker compose -f deploy/docker-compose.yml up -d
 ```
 
-That's it. The dashboard is at `http://localhost:5000`. The OpenAPI explorers for each service are at `http://localhost:5001..5007/swagger`.
+That's it. The dashboard is at `http://localhost:5050`. The OpenAPI explorers for each service are at `http://localhost:5001..5007/swagger`.
 
 The first run pulls images and applies migrations; expect 2-3 minutes. Subsequent runs are seconds.
 
@@ -52,7 +52,7 @@ This split means you can leave Kafka and Postgres running between sessions, and 
 
 | Service | Port | What |
 |---|---|---|
-| `gateway` | 5000 | YARP reverse proxy. The only port the host normally needs to expose. |
+| `gateway` | 5050 | YARP reverse proxy. The only port the host normally needs to expose. Picked over 5000 because macOS uses 5000 for AirPlay Receiver. |
 | `identity` | 5001 | |
 | `payment` | 5002 | |
 | `transaction` | 5003 | Hosts the outbox publisher in-process. |
@@ -73,7 +73,7 @@ On first run, `docker compose up` triggers:
 4. AI Assistant runs the initial ingestion job over `docs/` (so the assistant can answer questions about itself).
 5. Kafka topics get created on first publish.
 
-After this, `localhost:5000` should show a working login form.
+After this, `localhost:5050` should show a working login form.
 
 ## Logging in (dev)
 
@@ -114,6 +114,8 @@ The `-v` form wipes Postgres data. Use this when migrations break in a way that'
 ## Common issues
 
 **"Port 5432 already in use".** A host Postgres is running. Either stop it, or change the port mapping in `docker-compose.infra.yml`.
+
+**"403 Forbidden" or "access denied" on `localhost:5000`.** On macOS, port 5000 is owned by the AirPlay Receiver system service (`ControlCenter` process). The gateway is on 5050 to dodge this; if you see 5000 anywhere in your local config, it's stale. Disabling AirPlay Receiver in System Settings → General → AirDrop & Handoff is the alternative, but we prefer the port change so the project works without OS-level tweaks.
 
 **"Kafka connection refused" from a service.** Kafka takes ~15s to come up. The services retry on startup; if the wait isn't long enough, the startup probe fails and the service stays in `Created`. Wait a few seconds and `docker compose start` the failed service.
 
