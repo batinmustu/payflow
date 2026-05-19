@@ -22,6 +22,12 @@
   <ItemGroup>
     <ProjectReference Include="..\..\..\src\Services\Identity\PayFlow.Identity.Domain\PayFlow.Identity.Domain.csproj" />
     <ProjectReference Include="..\..\..\src\Services\Identity\PayFlow.Identity.Application\PayFlow.Identity.Application.csproj" />
+    <ProjectReference Include="..\..\..\src\Services\Identity\PayFlow.Identity.Infrastructure\PayFlow.Identity.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.IdentityModel.JsonWebTokens" />
+    <PackageReference Include="Microsoft.IdentityModel.Tokens" />
   </ItemGroup>
 
 </Project>
