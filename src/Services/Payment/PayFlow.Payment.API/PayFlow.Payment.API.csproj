@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <UserSecretsId>payflow-payment</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\PayFlow.Payment.Application\PayFlow.Payment.Application.csproj" />
+    <ProjectReference Include="..\PayFlow.Payment.Infrastructure\PayFlow.Payment.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\..\BuildingBlocks\PayFlow.Observability\PayFlow.Observability.csproj" />
+  </ItemGroup>
+
+</Project>
