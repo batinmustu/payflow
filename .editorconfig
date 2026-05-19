@@ -370,3 +370,14 @@ csharp_style_var_when_type_is_apparent = true:suggestion
 csharp_style_prefer_switch_expression = true:suggestion
 csharp_style_pattern_matching_over_is_with_cast_check = true:suggestion
 
+# CA1000: Do not declare static members on generic types.
+# Disabled — Result<T> / Option<T> style factory methods are the explicit
+# coding convention (see docs/onboarding/coding-standards.md "Result type").
+dotnet_diagnostic.CA1000.severity = none
+
+# Test projects: relax conventions that conflict with xUnit-style test names.
+[tests/**/*.cs]
+# CA1707: Identifiers should not contain underscores.
+# Disabled in tests — `snake_case_test_names` is the project convention.
+dotnet_diagnostic.CA1707.severity = none
+
