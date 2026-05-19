@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using PayFlow.Identity.API.Auth;
 using PayFlow.Identity.API.Endpoints;
 using PayFlow.Identity.Application;
 using PayFlow.Identity.Infrastructure;
@@ -12,6 +13,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.AddPayFlowObservability(ServiceName);
 builder.Services.AddPayFlowIdentityApplication();
 builder.Services.AddPayFlowIdentityInfrastructure(builder.Configuration);
+builder.Services.AddPayFlowJwtAuthentication(builder.Configuration);
 
 builder.Services.AddHealthChecks();
 builder.Services.AddProblemDetails();
@@ -31,8 +33,12 @@ if (app.Environment.IsDevelopment())
 app.UseExceptionHandler();
 app.UseStatusCodePages();
 
+app.UseAuthentication();
+app.UseAuthorization();
+
 app.MapHealthChecks("/health");
 app.MapTenantEndpoints();
 app.MapAuthEndpoints();
+app.MapMeEndpoint();
 
 app.Run();

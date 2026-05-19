@@ -30,6 +30,7 @@ The HTTP status corresponds to the class of error: `400` for client mistakes, `4
 | `AUTH_API_KEY_REVOKED` | 401 | API key was revoked by the tenant. Generate a new one. |
 | `AUTH_SESSION_EXPIRED` | 401 | Refresh token is expired or unknown. Log in again. |
 | `AUTH_SESSION_COMPROMISED` | 401 | A refresh-token reuse was detected; the session family was revoked. Log in again. |
+| `AUTH_INVALID_CREDENTIALS` | 401 | Login submitted with a tenant slug / email / password combination that did not match. The endpoint deliberately collapses every credential mismatch (wrong tenant, unknown email, wrong password) into this single code so it can not be used as an enumeration oracle. |
 | `AUTH_FORBIDDEN` | 403 | Authenticated but lacking the required role/permission for this operation. |
 | `AUTH_TENANT_MISMATCH` | 403 | The resource belongs to a different tenant. |
 
