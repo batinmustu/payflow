@@ -21,6 +21,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\..\src\Services\Identity\PayFlow.Identity.Domain\PayFlow.Identity.Domain.csproj" />
+    <ProjectReference Include="..\..\..\src\Services\Identity\PayFlow.Identity.Application\PayFlow.Identity.Application.csproj" />
   </ItemGroup>
 
 </Project>
