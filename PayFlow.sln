@@ -15,6 +15,10 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "BuildingBlocks", "BuildingB
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PayFlow.SharedKernel.UnitTests", "tests\BuildingBlocks\PayFlow.SharedKernel.UnitTests\PayFlow.SharedKernel.UnitTests.csproj", "{77EACBCB-73DC-4A6C-8D7D-9CCA18957DD0}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PayFlow.Observability", "src\BuildingBlocks\PayFlow.Observability\PayFlow.Observability.csproj", "{BDB6778A-F8F6-4B50-BA77-A3015EB581B1}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PayFlow.Observability.UnitTests", "tests\BuildingBlocks\PayFlow.Observability.UnitTests\PayFlow.Observability.UnitTests.csproj", "{182CE403-8711-41F4-ADF4-163E675F6A51}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -32,11 +36,21 @@ Global
 		{77EACBCB-73DC-4A6C-8D7D-9CCA18957DD0}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{77EACBCB-73DC-4A6C-8D7D-9CCA18957DD0}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{77EACBCB-73DC-4A6C-8D7D-9CCA18957DD0}.Release|Any CPU.Build.0 = Release|Any CPU
+		{BDB6778A-F8F6-4B50-BA77-A3015EB581B1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BDB6778A-F8F6-4B50-BA77-A3015EB581B1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BDB6778A-F8F6-4B50-BA77-A3015EB581B1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BDB6778A-F8F6-4B50-BA77-A3015EB581B1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{182CE403-8711-41F4-ADF4-163E675F6A51}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{182CE403-8711-41F4-ADF4-163E675F6A51}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{182CE403-8711-41F4-ADF4-163E675F6A51}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{182CE403-8711-41F4-ADF4-163E675F6A51}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{7B07A325-335D-4B77-9659-88C05FD3ED47} = {9E9980C9-561A-4404-8953-81F9E1A75CA6}
 		{8D4E99F2-E73C-415F-AE76-19DB0D303721} = {7B07A325-335D-4B77-9659-88C05FD3ED47}
 		{1076D34A-7535-4FC9-A44C-1E916A659ACA} = {A83C0B6C-2842-4F58-8AF4-F0370E53E1F0}
 		{77EACBCB-73DC-4A6C-8D7D-9CCA18957DD0} = {1076D34A-7535-4FC9-A44C-1E916A659ACA}
+		{BDB6778A-F8F6-4B50-BA77-A3015EB581B1} = {7B07A325-335D-4B77-9659-88C05FD3ED47}
+		{182CE403-8711-41F4-ADF4-163E675F6A51} = {1076D34A-7535-4FC9-A44C-1E916A659ACA}
 	EndGlobalSection
 EndGlobal
