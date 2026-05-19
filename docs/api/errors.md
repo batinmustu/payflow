@@ -35,7 +35,7 @@ The HTTP status corresponds to the class of error: `400` for client mistakes, `4
 
 ## Validation (`400`, `422`)
 
-422 responses follow RFC 7807 ValidationProblemDetails. The `errors` map is keyed by the request's field name; each value is an array of stable, machine-readable codes. Codes are the contract — never branch on the human-readable text in `title` or `detail`.
+Field-related failures — whether the value is shape-invalid (422) or in conflict with existing state (409) — share one body shape, an RFC 7807 ValidationProblemDetails. The `errors` map is keyed by the request's field name; each value is an array of stable, machine-readable codes. The status code carries the semantic (validation vs conflict); the body shape stays constant. Codes are the contract — never branch on the human-readable text in `title` or `detail`.
 
 ```json
 {
@@ -57,16 +57,17 @@ Shape-level codes apply to any field (set by the request-level validator):
 | `TOO_SHORT` | The value is below the field's minimum length. |
 | `TOO_LONG` | The value exceeds the field's maximum length. |
 
-Domain-level codes are surfaced through the same map when an aggregate or value object rejects the value. The endpoint picks the field; the code stays as written:
+Domain-level codes are surfaced through the same map when an aggregate or value object rejects the value, or when business state rejects the operation. The endpoint picks the field; the code stays as written.
 
-| Code | Field on this endpoint | Meaning |
-|---|---|---|
-| `EMAIL_INVALID` | `AdminEmail` | Value is not shaped like an email. |
-| `EMAIL_REQUIRED` | `AdminEmail` | Blank email reaching the Domain layer. Normally caught earlier by `REQUIRED`. |
-| `TENANT_NAME_REQUIRED` | `Name` | Blank name reaching the Domain layer. |
-| `TENANT_SLUG_REQUIRED` | `Slug` | Blank slug reaching the Domain layer. |
-| `TENANT_SLUG_INVALID` | `Slug` | Slug does not match the kebab-case shape rule. |
-| `DISPLAY_NAME_REQUIRED` | `AdminDisplayName` | Blank display name reaching the Domain layer. |
+| Code | Field | Status | Meaning |
+|---|---|---|---|
+| `EMAIL_INVALID` | `AdminEmail` | 422 | Value is not shaped like an email. |
+| `EMAIL_REQUIRED` | `AdminEmail` | 422 | Blank email reaching the Domain layer. Normally caught earlier by `REQUIRED`. |
+| `TENANT_NAME_REQUIRED` | `Name` | 422 | Blank name reaching the Domain layer. |
+| `TENANT_SLUG_REQUIRED` | `Slug` | 422 | Blank slug reaching the Domain layer. |
+| `TENANT_SLUG_INVALID` | `Slug` | 422 | Slug does not match the kebab-case shape rule. |
+| `TENANT_SLUG_TAKEN` | `Slug` | 409 | Another tenant is already using this slug. |
+| `DISPLAY_NAME_REQUIRED` | `AdminDisplayName` | 422 | Blank display name reaching the Domain layer. |
 
 Other request-level errors:
 
