@@ -51,6 +51,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PayFlow.Payment.Domain", "s
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PayFlow.Payment.UnitTests", "tests\Services\PayFlow.Payment.UnitTests\PayFlow.Payment.UnitTests.csproj", "{48A7B8C8-5A8F-4B69-B98C-DC029F005C19}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PayFlow.Payment.Application", "src\Services\Payment\PayFlow.Payment.Application\PayFlow.Payment.Application.csproj", "{71894933-9B78-4023-8827-81A6867A810B}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PayFlow.Payment.Infrastructure", "src\Services\Payment\PayFlow.Payment.Infrastructure\PayFlow.Payment.Infrastructure.csproj", "{1F9656A9-82F6-41F2-860F-E768EE2A29EB}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -120,6 +124,14 @@ Global
 		{48A7B8C8-5A8F-4B69-B98C-DC029F005C19}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{48A7B8C8-5A8F-4B69-B98C-DC029F005C19}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{48A7B8C8-5A8F-4B69-B98C-DC029F005C19}.Release|Any CPU.Build.0 = Release|Any CPU
+		{71894933-9B78-4023-8827-81A6867A810B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{71894933-9B78-4023-8827-81A6867A810B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{71894933-9B78-4023-8827-81A6867A810B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{71894933-9B78-4023-8827-81A6867A810B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{1F9656A9-82F6-41F2-860F-E768EE2A29EB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1F9656A9-82F6-41F2-860F-E768EE2A29EB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1F9656A9-82F6-41F2-860F-E768EE2A29EB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1F9656A9-82F6-41F2-860F-E768EE2A29EB}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{7B07A325-335D-4B77-9659-88C05FD3ED47} = {9E9980C9-561A-4404-8953-81F9E1A75CA6}
@@ -144,5 +156,7 @@ Global
 		{FFE9534B-1906-4D47-99E6-400054C27BD5} = {9DF76550-37D7-4036-B501-0B78D594C51D}
 		{0052ABE0-9D78-4AA3-B79D-C3637C38B3B7} = {FFE9534B-1906-4D47-99E6-400054C27BD5}
 		{48A7B8C8-5A8F-4B69-B98C-DC029F005C19} = {BC169898-C38D-4774-8272-B11E25AFDC88}
+		{71894933-9B78-4023-8827-81A6867A810B} = {FFE9534B-1906-4D47-99E6-400054C27BD5}
+		{1F9656A9-82F6-41F2-860F-E768EE2A29EB} = {FFE9534B-1906-4D47-99E6-400054C27BD5}
 	EndGlobalSection
 EndGlobal

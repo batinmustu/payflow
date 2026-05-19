@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\PayFlow.Payment.Domain\PayFlow.Payment.Domain.csproj" />
+    <ProjectReference Include="..\PayFlow.Payment.Application\PayFlow.Payment.Application.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="PayFlow.Payment.UnitTests" />
+  </ItemGroup>
+
+</Project>
