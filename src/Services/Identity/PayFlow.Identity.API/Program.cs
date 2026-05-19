@@ -13,7 +13,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.AddPayFlowObservability(ServiceName);
 builder.Services.AddPayFlowIdentityApplication();
 builder.Services.AddPayFlowIdentityInfrastructure(builder.Configuration);
-builder.Services.AddPayFlowJwtAuthentication(builder.Configuration);
+builder.Services.AddPayFlowJwtAuthentication();
 
 builder.Services.AddHealthChecks();
 builder.Services.AddProblemDetails();
@@ -42,3 +42,6 @@ app.MapAuthEndpoints();
 app.MapMeEndpoint();
 
 app.Run();
+
+// Exposed so WebApplicationFactory<Program> can spin the host up in tests.
+public partial class Program { }

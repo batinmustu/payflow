@@ -12,26 +12,23 @@ internal static class JwtAuthExtensions
     /// downstream services will later validate the same audience using either
     /// the shared symmetric key (dev) or a JWKS endpoint (prod).
     /// </summary>
-    public static IServiceCollection AddPayFlowJwtAuthentication(
-        this IServiceCollection services,
-        IConfiguration configuration)
+    public static IServiceCollection AddPayFlowJwtAuthentication(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
-        ArgumentNullException.ThrowIfNull(configuration);
 
-        var jwt = configuration.GetSection("Identity:Jwt");
-        var issuer = jwt["Issuer"]
-            ?? throw new InvalidOperationException("Identity:Jwt:Issuer is not configured.");
-        var audience = jwt["Audience"]
-            ?? throw new InvalidOperationException("Identity:Jwt:Audience is not configured.");
-        var signingKey = jwt["SigningKey"]
-            ?? throw new InvalidOperationException("Identity:Jwt:SigningKey is not configured.");
-
-        services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-            .AddJwtBearer(options =>
+        services
+            .AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)
+            .Configure<IConfiguration>((options, configuration) =>
             {
-                options.MapInboundClaims = false; // keep short claim names ("sub", "role", "tid")
+                var jwt = configuration.GetSection("Identity:Jwt");
+                var issuer = jwt["Issuer"]
+                    ?? throw new InvalidOperationException("Identity:Jwt:Issuer is not configured.");
+                var audience = jwt["Audience"]
+                    ?? throw new InvalidOperationException("Identity:Jwt:Audience is not configured.");
+                var signingKey = jwt["SigningKey"]
+                    ?? throw new InvalidOperationException("Identity:Jwt:SigningKey is not configured.");
 
+                options.MapInboundClaims = false; // keep short claim names ("sub", "role", "tid")
                 options.TokenValidationParameters = new TokenValidationParameters
                 {
                     ValidIssuer = issuer,
@@ -47,6 +44,9 @@ internal static class JwtAuthExtensions
                 };
             });
 
+        services
+            .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+            .AddJwtBearer();
         services.AddAuthorization();
         return services;
     }
