@@ -37,10 +37,13 @@ internal static class TenantEndpoints
         var validation = await validator.ValidateAsync(command, ct);
         if (!validation.IsValid)
         {
+            // Surface ErrorCode (stable, machine-readable) — not ErrorMessage
+            // (human text, localised). Same shape as ErrorMapping returns for
+            // Domain-side validation failures.
             return Results.ValidationProblem(
                 validation.Errors
                     .GroupBy(e => e.PropertyName)
-                    .ToDictionary(g => g.Key, g => g.Select(e => e.ErrorMessage).ToArray()),
+                    .ToDictionary(g => g.Key, g => g.Select(e => e.ErrorCode).ToArray()),
                 statusCode: StatusCodes.Status422UnprocessableEntity);
         }
 

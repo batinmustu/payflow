@@ -35,25 +35,46 @@ The HTTP status corresponds to the class of error: `400` for client mistakes, `4
 
 ## Validation (`400`, `422`)
 
-| Code | HTTP | Meaning |
-|---|---|---|
-| `VALIDATION_ERROR` | 422 | One or more fields failed validation. `details.errors` is an array of `{ field, code, message }`. |
-| `INVALID_REQUEST_BODY` | 400 | Body could not be parsed as JSON. |
-| `UNSUPPORTED_CONTENT_TYPE` | 400 | `Content-Type` is not `application/json`. |
-| `UNKNOWN_FIELD` | 400 | A field in the body is not allowed for this endpoint. We are strict about unknown fields for safety. |
-
-Example `VALIDATION_ERROR` details:
+422 responses follow RFC 7807 ValidationProblemDetails. The `errors` map is keyed by the request's field name; each value is an array of stable, machine-readable codes. Codes are the contract — never branch on the human-readable text in `title` or `detail`.
 
 ```json
 {
-  "details": {
-    "errors": [
-      { "field": "amount_minor", "code": "must_be_positive", "message": "Amount must be greater than zero." },
-      { "field": "currency", "code": "iso_4217_required", "message": "Currency must be a 3-letter ISO 4217 code." }
-    ]
+  "type": "https://tools.ietf.org/html/rfc4918#section-11.2",
+  "title": "One or more validation errors occurred.",
+  "status": 422,
+  "errors": {
+    "AdminEmail": ["EMAIL_INVALID"],
+    "AdminPassword": ["REQUIRED", "TOO_SHORT"]
   }
 }
 ```
+
+Shape-level codes apply to any field (set by the request-level validator):
+
+| Code | Meaning |
+|---|---|
+| `REQUIRED` | The field is missing or blank. |
+| `TOO_SHORT` | The value is below the field's minimum length. |
+| `TOO_LONG` | The value exceeds the field's maximum length. |
+
+Domain-level codes are surfaced through the same map when an aggregate or value object rejects the value. The endpoint picks the field; the code stays as written:
+
+| Code | Field on this endpoint | Meaning |
+|---|---|---|
+| `EMAIL_INVALID` | `AdminEmail` | Value is not shaped like an email. |
+| `EMAIL_REQUIRED` | `AdminEmail` | Blank email reaching the Domain layer. Normally caught earlier by `REQUIRED`. |
+| `TENANT_NAME_REQUIRED` | `Name` | Blank name reaching the Domain layer. |
+| `TENANT_SLUG_REQUIRED` | `Slug` | Blank slug reaching the Domain layer. |
+| `TENANT_SLUG_INVALID` | `Slug` | Slug does not match the kebab-case shape rule. |
+| `DISPLAY_NAME_REQUIRED` | `AdminDisplayName` | Blank display name reaching the Domain layer. |
+
+Other request-level errors:
+
+| Code | HTTP | Meaning |
+|---|---|---|
+| `INVALID_REQUEST_BODY` | 400 | Body could not be parsed as JSON. |
+| `UNSUPPORTED_CONTENT_TYPE` | 400 | `Content-Type` is not `application/json`. |
+| `UNKNOWN_FIELD` | 400 | A field in the body is not allowed for this endpoint. We are strict about unknown fields for safety. |
 
 ## Idempotency (`400`, `409`, `422`, `503`)
 
