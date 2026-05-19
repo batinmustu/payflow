@@ -35,6 +35,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PayFlow.Identity.UnitTests"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PayFlow.Identity.Application", "src\Services\Identity\PayFlow.Identity.Application\PayFlow.Identity.Application.csproj", "{628908D1-BD84-4C44-8C66-489242214C6A}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PayFlow.Identity.Infrastructure", "src\Services\Identity\PayFlow.Identity.Infrastructure\PayFlow.Identity.Infrastructure.csproj", "{EA37E987-EEA7-4B9B-9342-04CF302CC24F}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -76,6 +78,10 @@ Global
 		{628908D1-BD84-4C44-8C66-489242214C6A}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{628908D1-BD84-4C44-8C66-489242214C6A}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{628908D1-BD84-4C44-8C66-489242214C6A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{EA37E987-EEA7-4B9B-9342-04CF302CC24F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{EA37E987-EEA7-4B9B-9342-04CF302CC24F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{EA37E987-EEA7-4B9B-9342-04CF302CC24F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{EA37E987-EEA7-4B9B-9342-04CF302CC24F}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{7B07A325-335D-4B77-9659-88C05FD3ED47} = {9E9980C9-561A-4404-8953-81F9E1A75CA6}
@@ -92,5 +98,6 @@ Global
 		{BC169898-C38D-4774-8272-B11E25AFDC88} = {A83C0B6C-2842-4F58-8AF4-F0370E53E1F0}
 		{12A8A746-DD94-4CDE-B2D1-970B6FB73DA2} = {BC169898-C38D-4774-8272-B11E25AFDC88}
 		{628908D1-BD84-4C44-8C66-489242214C6A} = {A848E437-78ED-4A72-BA62-D3906A9602E3}
+		{EA37E987-EEA7-4B9B-9342-04CF302CC24F} = {A848E437-78ED-4A72-BA62-D3906A9602E3}
 	EndGlobalSection
 EndGlobal
