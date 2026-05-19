@@ -38,7 +38,7 @@ This split means you can leave Kafka and Postgres running between sessions, and 
 
 | Service | Port | Notes |
 |---|---|---|
-| `postgres` | 5432 | Single instance, with `pgvector` extension. Database `payflow` with seven schemas (one per service). |
+| `postgres` | 5433 (host) → 5432 (container) | Single instance, with `pgvector` extension. Database `payflow` with seven schemas (one per service). Host port is 5433 so a developer's native Postgres on 5432 keeps working. |
 | `redis` | 6379 | No persistence in dev. |
 | `kafka` | 9092 | Single broker; auto-create topics enabled in dev only. KRaft mode (no ZooKeeper). |
 | `rabbitmq` | 5672, management 15672 | Default guest/guest credentials in dev. |
@@ -113,7 +113,7 @@ The `-v` form wipes Postgres data. Use this when migrations break in a way that'
 
 ## Common issues
 
-**"Port 5432 already in use".** A host Postgres is running. Either stop it, or change the port mapping in `docker-compose.infra.yml`.
+**"Port 5432 already in use" / `psql` connects to the wrong server.** Postgres in this stack is published on the host as **5433** for exactly this reason — a developer's native Postgres can keep running on 5432 without clashing. Connect to ours with `psql -h localhost -p 5433 -U payflow`. Services that run inside the docker network still use 5432; that's the in-container port.
 
 **"403 Forbidden" or "access denied" on `localhost:5000`.** On macOS, port 5000 is owned by the AirPlay Receiver system service (`ControlCenter` process). The gateway is on 5050 to dodge this; if you see 5000 anywhere in your local config, it's stale. Disabling AirPlay Receiver in System Settings → General → AirDrop & Handoff is the alternative, but we prefer the port change so the project works without OS-level tweaks.
 

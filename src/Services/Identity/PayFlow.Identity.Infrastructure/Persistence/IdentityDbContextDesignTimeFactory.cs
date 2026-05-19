@@ -13,7 +13,7 @@ internal sealed class IdentityDbContextDesignTimeFactory : IDesignTimeDbContextF
     public IdentityDbContext CreateDbContext(string[] args)
     {
         var options = new DbContextOptionsBuilder<IdentityDbContext>()
-            .UseNpgsql("Host=localhost;Port=5432;Database=payflow;Username=payflow;Password=payflow",
+            .UseNpgsql("Host=localhost;Port=5433;Database=payflow;Username=payflow;Password=payflow",
                 npgsql => npgsql.MigrationsHistoryTable("__ef_migrations_history", IdentityDbContext.SchemaName))
             .Options;
 
