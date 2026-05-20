@@ -1,12 +1,15 @@
 namespace PayFlow.Transaction.Application.Abstractions;
 
 /// <summary>
-/// Decides which provider Transaction asks Payment to charge. v1 returns a
-/// single hard-coded provider per tenant so the end-to-end flow works;
-/// per-tenant routing rules + failover land in a later milestone once the
-/// configuration store exists.
+/// Returns the ordered list of providers Transaction should try for a given
+/// tenant. The handler dispatches them in order and falls over to the next
+/// on a soft decline / provider-unavailable. Hard declines stop the chain.
+///
+/// v1 returns a static ordering from configuration; per-tenant routing
+/// rules (rows in a routing_rules table) plug in here later without the
+/// handler caring.
 /// </summary>
 public interface IRoutingPolicy
 {
-    string PickProvider(Guid tenantId);
+    IReadOnlyList<string> ResolveOrder(Guid tenantId);
 }
