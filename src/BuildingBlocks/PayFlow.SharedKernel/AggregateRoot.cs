@@ -1,6 +1,6 @@
 namespace PayFlow.SharedKernel;
 
-public abstract class AggregateRoot<TId> : BaseEntity<TId>
+public abstract class AggregateRoot<TId> : BaseEntity<TId>, IHasDomainEvents
     where TId : notnull
 {
     private readonly List<DomainEvent> _domainEvents = [];

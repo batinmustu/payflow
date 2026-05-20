@@ -2,7 +2,9 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using PayFlow.Outbox;
 using PayFlow.Transaction.Application.Abstractions;
+using PayFlow.Transaction.Infrastructure.Outbox;
 using PayFlow.Transaction.Infrastructure.Payments;
 using PayFlow.Transaction.Infrastructure.Persistence;
 using PayFlow.Transaction.Infrastructure.Routing;
@@ -22,11 +24,18 @@ public static class DependencyInjection
             ?? throw new InvalidOperationException(
                 "ConnectionStrings:TransactionDb is not configured for the Transaction service.");
 
-        services.AddDbContext<TransactionDbContext>(options =>
+        // Interceptor that turns IIntegrationDomainEvent → OutboxMessage rows
+        // in the same SaveChanges as the business state change.
+        services.AddSingleton<DomainEventToOutboxInterceptor>();
+
+        services.AddDbContext<TransactionDbContext>((sp, options) =>
+        {
             options.UseNpgsql(connectionString, npgsql =>
                 npgsql.MigrationsHistoryTable(
                     tableName: "__ef_migrations_history",
-                    schema: TransactionDbContext.SchemaName)));
+                    schema: TransactionDbContext.SchemaName));
+            options.AddInterceptors(sp.GetRequiredService<DomainEventToOutboxInterceptor>());
+        });
 
         services.AddScoped<ITransactionRepository, TransactionRepository>();
         services.AddScoped<IUnitOfWork, UnitOfWork>();
@@ -41,6 +50,10 @@ public static class DependencyInjection
             client.BaseAddress = new Uri(opts.BaseUrl.TrimEnd('/') + "/");
             client.Timeout = TimeSpan.FromSeconds(opts.TimeoutSeconds);
         });
+
+        // Outbox transport — stub until the Kafka publisher lands.
+        services.AddSingleton<IOutboxPublisher, LoggingOutboxPublisher>();
+        services.AddPayFlowOutbox<TransactionDbContext>(configuration);
 
         return services;
     }

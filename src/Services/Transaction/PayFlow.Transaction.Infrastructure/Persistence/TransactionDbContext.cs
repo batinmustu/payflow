@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using PayFlow.Outbox;
 using TransactionAggregate = PayFlow.Transaction.Domain.Transactions.Transaction;
 
 namespace PayFlow.Transaction.Infrastructure.Persistence;
@@ -12,6 +13,7 @@ public sealed class TransactionDbContext : DbContext
     }
 
     public DbSet<TransactionAggregate> Transactions => Set<TransactionAggregate>();
+    public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -19,5 +21,6 @@ public sealed class TransactionDbContext : DbContext
 
         modelBuilder.HasDefaultSchema(SchemaName);
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(TransactionDbContext).Assembly);
+        modelBuilder.ApplyConfiguration(new OutboxMessageConfiguration());
     }
 }
