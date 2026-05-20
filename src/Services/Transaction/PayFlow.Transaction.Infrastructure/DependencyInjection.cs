@@ -39,6 +39,7 @@ public static class DependencyInjection
         });
 
         services.AddScoped<ITransactionRepository, TransactionRepository>();
+        services.AddScoped<IRefundRepository, RefundRepository>();
         services.AddScoped<IUnitOfWork, UnitOfWork>();
 
         services.Configure<RoutingOptions>(configuration.GetSection(RoutingOptions.SectionName));
