@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using PayFlow.EventBus.Kafka;
 using PayFlow.Outbox;
 using PayFlow.Transaction.Application.Abstractions;
 using PayFlow.Transaction.Infrastructure.Outbox;
@@ -51,8 +52,9 @@ public static class DependencyInjection
             client.Timeout = TimeSpan.FromSeconds(opts.TimeoutSeconds);
         });
 
-        // Outbox transport — stub until the Kafka publisher lands.
-        services.AddSingleton<IOutboxPublisher, LoggingOutboxPublisher>();
+        // Outbox transport: Kafka. (LoggingOutboxPublisher kept in the assembly
+        // for tests + a future dev override; not registered by default.)
+        services.AddPayFlowKafkaOutboxPublisher(configuration);
         services.AddPayFlowOutbox<TransactionDbContext>(configuration);
 
         return services;

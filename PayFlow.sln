@@ -73,6 +73,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PayFlow.Outbox", "src\Build
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PayFlow.Outbox.UnitTests", "tests\BuildingBlocks\PayFlow.Outbox.UnitTests\PayFlow.Outbox.UnitTests.csproj", "{DF9EE711-51B1-4A9B-8FE7-991D689B6A08}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PayFlow.EventBus.Kafka", "src\BuildingBlocks\PayFlow.EventBus.Kafka\PayFlow.EventBus.Kafka.csproj", "{B5DA1EFB-4953-4E4B-9BAC-2C89D58FB821}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -182,6 +184,10 @@ Global
 		{DF9EE711-51B1-4A9B-8FE7-991D689B6A08}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{DF9EE711-51B1-4A9B-8FE7-991D689B6A08}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{DF9EE711-51B1-4A9B-8FE7-991D689B6A08}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B5DA1EFB-4953-4E4B-9BAC-2C89D58FB821}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B5DA1EFB-4953-4E4B-9BAC-2C89D58FB821}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B5DA1EFB-4953-4E4B-9BAC-2C89D58FB821}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B5DA1EFB-4953-4E4B-9BAC-2C89D58FB821}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{7B07A325-335D-4B77-9659-88C05FD3ED47} = {9E9980C9-561A-4404-8953-81F9E1A75CA6}
@@ -217,5 +223,6 @@ Global
 		{83A3C963-7810-49FE-B0ED-B8FBA3DDAD58} = {FF9EECB4-3D7B-446D-BEF7-8FAB57DDD5B2}
 		{8504DC4A-940A-4261-9921-DA644939DC0A} = {7B07A325-335D-4B77-9659-88C05FD3ED47}
 		{DF9EE711-51B1-4A9B-8FE7-991D689B6A08} = {1076D34A-7535-4FC9-A44C-1E916A659ACA}
+		{B5DA1EFB-4953-4E4B-9BAC-2C89D58FB821} = {7B07A325-335D-4B77-9659-88C05FD3ED47}
 	EndGlobalSection
 EndGlobal
