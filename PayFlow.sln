@@ -65,6 +65,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PayFlow.Transaction.UnitTes
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PayFlow.Transaction.Application", "src\Services\Transaction\PayFlow.Transaction.Application\PayFlow.Transaction.Application.csproj", "{1BE11631-7E47-4DA4-B53A-C9CD47DA929E}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PayFlow.Transaction.Infrastructure", "src\Services\Transaction\PayFlow.Transaction.Infrastructure\PayFlow.Transaction.Infrastructure.csproj", "{4E3114BC-7359-4B00-ACD7-341594823AC5}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -158,6 +160,10 @@ Global
 		{1BE11631-7E47-4DA4-B53A-C9CD47DA929E}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{1BE11631-7E47-4DA4-B53A-C9CD47DA929E}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{1BE11631-7E47-4DA4-B53A-C9CD47DA929E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4E3114BC-7359-4B00-ACD7-341594823AC5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4E3114BC-7359-4B00-ACD7-341594823AC5}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4E3114BC-7359-4B00-ACD7-341594823AC5}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4E3114BC-7359-4B00-ACD7-341594823AC5}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{7B07A325-335D-4B77-9659-88C05FD3ED47} = {9E9980C9-561A-4404-8953-81F9E1A75CA6}
@@ -189,5 +195,6 @@ Global
 		{EA8E3BBE-A63F-466D-908C-D14E44091583} = {FF9EECB4-3D7B-446D-BEF7-8FAB57DDD5B2}
 		{D3C21A6D-374F-464A-ABC0-01E12C839848} = {BC169898-C38D-4774-8272-B11E25AFDC88}
 		{1BE11631-7E47-4DA4-B53A-C9CD47DA929E} = {FF9EECB4-3D7B-446D-BEF7-8FAB57DDD5B2}
+		{4E3114BC-7359-4B00-ACD7-341594823AC5} = {FF9EECB4-3D7B-446D-BEF7-8FAB57DDD5B2}
 	EndGlobalSection
 EndGlobal
