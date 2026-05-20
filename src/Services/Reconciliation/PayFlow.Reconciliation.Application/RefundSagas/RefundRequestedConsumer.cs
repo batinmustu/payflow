@@ -1,5 +1,5 @@
 using Microsoft.Extensions.Logging;
-using PayFlow.EventBus.Kafka.Consuming;
+using PayFlow.EventBus;
 using PayFlow.Reconciliation.Application.Abstractions;
 using PayFlow.Reconciliation.Domain.RefundSagas;
 using PayFlow.SharedKernel;

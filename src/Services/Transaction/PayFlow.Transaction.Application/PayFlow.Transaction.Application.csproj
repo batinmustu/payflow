@@ -6,13 +6,14 @@
 
   <ItemGroup>
     <ProjectReference Include="..\PayFlow.Transaction.Domain\PayFlow.Transaction.Domain.csproj" />
-    <ProjectReference Include="..\..\..\BuildingBlocks\PayFlow.EventBus.Kafka\PayFlow.EventBus.Kafka.csproj" />
+    <ProjectReference Include="..\..\..\BuildingBlocks\PayFlow.EventBus.Abstractions\PayFlow.EventBus.Abstractions.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="MediatR" />
     <PackageReference Include="FluentValidation" />
     <PackageReference Include="FluentValidation.DependencyInjectionExtensions" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
   </ItemGroup>
 
   <ItemGroup>

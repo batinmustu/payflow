@@ -1,4 +1,4 @@
-using PayFlow.EventBus.Kafka.Consuming;
+using PayFlow.EventBus;
 
 namespace PayFlow.Reporting.Application.Projections.Consumers;
 

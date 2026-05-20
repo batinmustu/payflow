@@ -5,7 +5,6 @@ using Microsoft.Extensions.Options;
 using PayFlow.EventBus.Kafka;
 using PayFlow.Outbox;
 using PayFlow.Reconciliation.Application.Abstractions;
-using PayFlow.Reconciliation.Infrastructure.Outbox;
 using PayFlow.Reconciliation.Infrastructure.Payments;
 using PayFlow.Reconciliation.Infrastructure.Persistence;
 

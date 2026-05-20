@@ -1,5 +1,5 @@
 using Microsoft.Extensions.Logging;
-using PayFlow.EventBus.Kafka.Consuming;
+using PayFlow.EventBus;
 using PayFlow.Transaction.Application.Abstractions;
 using PayFlow.Transaction.Domain.Refunds;
 

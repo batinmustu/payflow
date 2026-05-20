@@ -1,29 +1,34 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
-using PayFlow.Outbox;
 using PayFlow.SharedKernel;
 
-namespace PayFlow.Transaction.Infrastructure.Outbox;
+namespace PayFlow.Outbox;
 
 /// <summary>
-/// On every SaveChangesAsync, walks every tracked aggregate and turns each
-/// of its <see cref="IIntegrationDomainEvent"/>s into an
-/// <see cref="OutboxMessage"/> row added to the same DB transaction. This is
-/// the "publish on commit" half of ADR-0004 — either the business state
-/// change and the outbox row land together, or neither does.
+/// On every SaveChanges, walks every tracked aggregate and turns each of its
+/// <see cref="IIntegrationDomainEvent"/>s into an <see cref="OutboxMessage"/>
+/// row added to the same DB transaction. This is the "publish on commit"
+/// half of ADR-0004 — either the business state change and the outbox row
+/// land together, or neither does.
+///
+/// Register once per service: <c>services.AddSingleton&lt;DomainEventToOutboxInterceptor&gt;()</c>,
+/// then in your <c>AddDbContext</c>:
+/// <c>options.AddInterceptors(sp.GetRequiredService&lt;DomainEventToOutboxInterceptor&gt;())</c>.
 /// </summary>
-internal sealed class DomainEventToOutboxInterceptor : SaveChangesInterceptor
+public sealed class DomainEventToOutboxInterceptor : SaveChangesInterceptor
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
     public override ValueTask<InterceptionResult<int>> SavingChangesAsync(
         DbContextEventData eventData,
         InterceptionResult<int> result,
-        CancellationToken ct = default)
+        CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(eventData);
+
         var ctx = eventData.Context;
-        if (ctx is null) return base.SavingChangesAsync(eventData, result, ct);
+        if (ctx is null) return base.SavingChangesAsync(eventData, result, cancellationToken);
 
         var aggregates = ctx.ChangeTracker
             .Entries<IHasDomainEvents>()
@@ -32,7 +37,7 @@ internal sealed class DomainEventToOutboxInterceptor : SaveChangesInterceptor
 
         if (aggregates.Count == 0)
         {
-            return base.SavingChangesAsync(eventData, result, ct);
+            return base.SavingChangesAsync(eventData, result, cancellationToken);
         }
 
         var outbox = ctx.Set<OutboxMessage>();
@@ -70,6 +75,6 @@ internal sealed class DomainEventToOutboxInterceptor : SaveChangesInterceptor
             entry.Entity.ClearDomainEvents();
         }
 
-        return base.SavingChangesAsync(eventData, result, ct);
+        return base.SavingChangesAsync(eventData, result, cancellationToken);
     }
 }

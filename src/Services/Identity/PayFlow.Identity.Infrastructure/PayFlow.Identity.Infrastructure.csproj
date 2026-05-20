@@ -8,6 +8,7 @@
     <ProjectReference Include="..\PayFlow.Identity.Domain\PayFlow.Identity.Domain.csproj" />
     <ProjectReference Include="..\PayFlow.Identity.Application\PayFlow.Identity.Application.csproj" />
     <ProjectReference Include="..\..\..\BuildingBlocks\PayFlow.Multitenancy\PayFlow.Multitenancy.csproj" />
+    <ProjectReference Include="..\..\..\BuildingBlocks\PayFlow.Outbox\PayFlow.Outbox.csproj" />
   </ItemGroup>
 
   <ItemGroup>

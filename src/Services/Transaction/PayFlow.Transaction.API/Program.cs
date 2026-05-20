@@ -55,5 +55,6 @@ app.UseAuthorization();
 
 app.MapHealthChecks("/health");
 app.MapTransactionEndpoints();
+app.MapRefundEndpoints();
 
 app.Run();

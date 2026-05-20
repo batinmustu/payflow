@@ -6,7 +6,6 @@ using PayFlow.EventBus.Kafka;
 using PayFlow.Multitenancy;
 using PayFlow.Outbox;
 using PayFlow.Transaction.Application.Abstractions;
-using PayFlow.Transaction.Infrastructure.Outbox;
 using PayFlow.Transaction.Infrastructure.Payments;
 using PayFlow.Transaction.Infrastructure.Persistence;
 using PayFlow.Transaction.Infrastructure.Routing;

@@ -5,6 +5,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\PayFlow.EventBus.Abstractions\PayFlow.EventBus.Abstractions.csproj" />
     <ProjectReference Include="..\PayFlow.Outbox\PayFlow.Outbox.csproj" />
   </ItemGroup>
 

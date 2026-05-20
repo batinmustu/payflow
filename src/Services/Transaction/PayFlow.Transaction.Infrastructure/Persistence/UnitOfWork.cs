@@ -1,6 +1,5 @@
 using Microsoft.EntityFrameworkCore;
-using Npgsql;
-using PayFlow.SharedKernel;
+using PayFlow.Outbox;
 using PayFlow.Transaction.Application.Abstractions;
 
 namespace PayFlow.Transaction.Infrastructure.Persistence;
@@ -11,17 +10,8 @@ internal sealed class UnitOfWork : IUnitOfWork
 
     public UnitOfWork(TransactionDbContext db) => _db = db;
 
-    public async Task<int> SaveChangesAsync(CancellationToken ct)
-    {
-        try
-        {
-            return await _db.SaveChangesAsync(ct);
-        }
-        catch (DbUpdateException ex) when (ex.InnerException is PostgresException { SqlState: "23505" } pg)
-        {
-            throw new UniqueConstraintViolationException(pg.ConstraintName, ex);
-        }
-    }
+    public Task<int> SaveChangesAsync(CancellationToken ct) =>
+        PostgresExceptionTranslator.RunAndTranslateAsync(_db.SaveChangesAsync, ct);
 
     public async Task<T> ExecuteSerialisedAsync<T>(
         Guid lockKey,
