@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <UserSecretsId>payflow-transaction</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\PayFlow.Transaction.Application\PayFlow.Transaction.Application.csproj" />
+    <ProjectReference Include="..\PayFlow.Transaction.Infrastructure\PayFlow.Transaction.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\..\BuildingBlocks\PayFlow.Observability\PayFlow.Observability.csproj" />
+    <ProjectReference Include="..\..\..\BuildingBlocks\PayFlow.Multitenancy\PayFlow.Multitenancy.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
+  </ItemGroup>
+
+</Project>
