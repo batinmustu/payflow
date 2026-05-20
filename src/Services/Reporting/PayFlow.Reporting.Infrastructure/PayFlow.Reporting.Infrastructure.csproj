@@ -23,6 +23,7 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="PayFlow.Reporting.UnitTests" />
+    <InternalsVisibleTo Include="PayFlow.Reporting.IntegrationTests" />
   </ItemGroup>
 
 </Project>
