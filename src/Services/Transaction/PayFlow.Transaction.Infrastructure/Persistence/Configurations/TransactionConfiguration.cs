@@ -25,7 +25,7 @@ internal sealed class TransactionConfiguration : IEntityTypeConfiguration<Transa
         builder.Property(t => t.State)
             .HasColumnName("state")
             .HasConversion<string>()
-            .HasMaxLength(16)
+            .HasMaxLength(24)
             .IsRequired();
 
         builder.Property(t => t.FinalProviderCode)
@@ -43,6 +43,11 @@ internal sealed class TransactionConfiguration : IEntityTypeConfiguration<Transa
         builder.Property(t => t.CreatedAt).HasColumnName("created_at").IsRequired();
         builder.Property(t => t.CapturedAt).HasColumnName("captured_at");
         builder.Property(t => t.FailedAt).HasColumnName("failed_at");
+
+        builder.Property(t => t.RefundedAmountMinor)
+            .HasColumnName("refunded_amount_minor")
+            .HasDefaultValue(0L)
+            .IsRequired();
 
         // Per docs/database/erd-transaction.md indices.
         builder.HasIndex(t => new { t.TenantId, t.OrderReference })

@@ -58,6 +58,11 @@ public static class DependencyInjection
         services.AddPayFlowKafkaOutboxPublisher(configuration);
         services.AddPayFlowOutbox<TransactionDbContext>(configuration);
 
+        // Saga events flow back into TX — Reconciliation publishes
+        // payflow.refund.processing/completed/failed.v1; the actual topic
+        // bindings live in the API layer via AddPayFlowKafkaConsumer<,>().
+        services.AddPayFlowKafkaConsuming(configuration);
+
         return services;
     }
 }

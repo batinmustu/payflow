@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using PayFlow.Outbox;
+using PayFlow.Reconciliation.Domain.RefundSagas;
 
 namespace PayFlow.Reconciliation.Infrastructure.Persistence;
 
@@ -11,6 +12,7 @@ public sealed class ReconciliationDbContext : DbContext
     {
     }
 
+    public DbSet<RefundSaga> RefundSagas => Set<RefundSaga>();
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)

@@ -6,6 +6,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\PayFlow.Reconciliation.Domain\PayFlow.Reconciliation.Domain.csproj" />
+    <ProjectReference Include="..\..\..\BuildingBlocks\PayFlow.EventBus.Kafka\PayFlow.EventBus.Kafka.csproj" />
   </ItemGroup>
 
   <ItemGroup>

@@ -11,5 +11,7 @@ public enum TransactionState
 {
     Initiated,
     Captured,
+    PartiallyRefunded,
+    Refunded,
     Failed,
 }

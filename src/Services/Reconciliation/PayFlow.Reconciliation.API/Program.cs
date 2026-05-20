@@ -1,8 +1,10 @@
 using Microsoft.EntityFrameworkCore;
+using PayFlow.EventBus.Kafka;
 using PayFlow.Multitenancy;
 using PayFlow.Observability;
 using PayFlow.Reconciliation.API.Auth;
 using PayFlow.Reconciliation.Application;
+using PayFlow.Reconciliation.Application.RefundSagas;
 using PayFlow.Reconciliation.Infrastructure;
 using PayFlow.Reconciliation.Infrastructure.Persistence;
 
@@ -15,6 +17,12 @@ builder.Services.AddPayFlowReconciliationApplication();
 builder.Services.AddPayFlowReconciliationInfrastructure(builder.Configuration);
 builder.Services.AddPayFlowJwtAuthentication();
 builder.Services.AddPayFlowMultitenancy();
+
+// Saga starts here — bind the producer-side topic name to the consumer
+// that walks the choreography. Add more AddPayFlowKafkaConsumer<,>() calls
+// as the service grows.
+builder.Services.AddPayFlowKafkaConsumer<RefundRequestedIntegrationEvent, RefundRequestedConsumer>(
+    "payflow.refund.requested.v1");
 
 builder.Services.AddHealthChecks();
 builder.Services.AddProblemDetails();

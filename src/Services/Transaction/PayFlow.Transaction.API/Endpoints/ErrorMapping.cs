@@ -14,6 +14,7 @@ internal static class ErrorMapping
             ["REFUND_AMOUNT_EXCEEDS_REMAINING"] = ("AmountMinor", StatusCodes.Status422UnprocessableEntity),
             ["REFUND_NOT_ALLOWED_IN_STATE"] = ("TransactionId", StatusCodes.Status409Conflict),
             ["TRANSACTION_NOT_FOUND"] = ("TransactionId", StatusCodes.Status404NotFound),
+            ["REFUND_NOT_FOUND"] = ("RefundId", StatusCodes.Status404NotFound),
         };
 
     public static IResult ToProblem(string errorCode)

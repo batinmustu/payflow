@@ -2,6 +2,7 @@ using System.Security.Claims;
 using FluentValidation;
 using MediatR;
 using PayFlow.Multitenancy;
+using PayFlow.Transaction.Application.Refunds.GetRefund;
 using PayFlow.Transaction.Application.Refunds.RequestRefund;
 using PayFlow.Transaction.Application.Transactions.CreateTransaction;
 
@@ -27,6 +28,11 @@ internal static class TransactionEndpoints
             .ProducesValidationProblem()
             .ProducesProblem(StatusCodes.Status404NotFound)
             .ProducesProblem(StatusCodes.Status409Conflict);
+
+        group.MapGet("/{id:guid}/refunds/{refundId:guid}", GetRefundAsync)
+            .WithName("GetRefund")
+            .Produces<GetRefundResponse>(StatusCodes.Status200OK)
+            .ProducesProblem(StatusCodes.Status404NotFound);
 
         return routes;
     }
@@ -117,6 +123,33 @@ internal static class TransactionEndpoints
             ? Results.Accepted(
                 $"/api/transactions/{result.Value.TransactionId}/refunds/{result.Value.RefundId}",
                 result.Value)
+            : ErrorMapping.ToProblem(result.ErrorCode!);
+    }
+
+    private static async Task<IResult> GetRefundAsync(
+        Guid id,
+        Guid refundId,
+        ITenantContext tenantContext,
+        IMediator mediator,
+        CancellationToken ct)
+    {
+        if (!tenantContext.IsResolved)
+        {
+            return Results.Problem(
+                statusCode: StatusCodes.Status401Unauthorized,
+                title: "No tenant context",
+                detail: "JWT did not carry a 'tid' claim. Re-authenticate.",
+                extensions: new Dictionary<string, object?> { ["code"] = "AUTH_TENANT_MISSING" });
+        }
+
+        var query = new GetRefundQuery(
+            TenantId: tenantContext.TenantId!.Value,
+            TransactionId: id,
+            RefundId: refundId);
+
+        var result = await mediator.Send(query, ct);
+        return result.IsSuccess
+            ? Results.Ok(result.Value)
             : ErrorMapping.ToProblem(result.ErrorCode!);
     }
 }

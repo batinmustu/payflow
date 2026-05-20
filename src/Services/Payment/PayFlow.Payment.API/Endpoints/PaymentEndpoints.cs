@@ -1,6 +1,7 @@
 using FluentValidation;
 using MediatR;
 using PayFlow.Payment.Application.Payments.Charge;
+using PayFlow.Payment.Application.Payments.Refund;
 
 namespace PayFlow.Payment.API.Endpoints;
 
@@ -13,6 +14,11 @@ internal static class PaymentEndpoints
         group.MapPost("/charge", ChargeAsync)
             .WithName("Charge")
             .Produces<ChargeResponse>(StatusCodes.Status200OK)
+            .ProducesValidationProblem();
+
+        group.MapPost("/refund", RefundAsync)
+            .WithName("Refund")
+            .Produces<RefundResponse>(StatusCodes.Status200OK)
             .ProducesValidationProblem();
 
         return routes;
@@ -33,6 +39,39 @@ internal static class PaymentEndpoints
             AmountMinor: request.AmountMinor,
             Currency: request.Currency,
             CardToken: request.CardToken);
+
+        var validation = await validator.ValidateAsync(command, ct);
+        if (!validation.IsValid)
+        {
+            return Results.ValidationProblem(
+                validation.Errors
+                    .GroupBy(e => e.PropertyName)
+                    .ToDictionary(g => g.Key, g => g.Select(e => e.ErrorCode).ToArray()),
+                statusCode: StatusCodes.Status422UnprocessableEntity);
+        }
+
+        var result = await mediator.Send(command, ct);
+        return result.IsSuccess
+            ? Results.Ok(result.Value)
+            : ErrorMapping.ToProblem(result.ErrorCode!);
+    }
+
+    private static async Task<IResult> RefundAsync(
+        RefundRequest request,
+        IValidator<RefundCommand> validator,
+        IMediator mediator,
+        CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        var command = new RefundCommand(
+            TenantId: request.TenantId,
+            TransactionId: request.TransactionId,
+            ProviderCode: request.ProviderCode,
+            ProviderReference: request.ProviderReference,
+            AmountMinor: request.AmountMinor,
+            Currency: request.Currency,
+            IdempotencyKey: request.IdempotencyKey);
 
         var validation = await validator.ValidateAsync(command, ct);
         if (!validation.IsValid)

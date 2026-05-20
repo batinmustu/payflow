@@ -1,9 +1,12 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using PayFlow.EventBus.Kafka;
 using PayFlow.Outbox;
 using PayFlow.Reconciliation.Application.Abstractions;
+using PayFlow.Reconciliation.Infrastructure.Outbox;
+using PayFlow.Reconciliation.Infrastructure.Payments;
 using PayFlow.Reconciliation.Infrastructure.Persistence;
 
 namespace PayFlow.Reconciliation.Infrastructure;
@@ -21,19 +24,31 @@ public static class DependencyInjection
             ?? throw new InvalidOperationException(
                 "ConnectionStrings:ReconciliationDb is not configured for the Reconciliation service.");
 
-        services.AddDbContext<ReconciliationDbContext>(options =>
+        services.AddSingleton<DomainEventToOutboxInterceptor>();
+
+        services.AddDbContext<ReconciliationDbContext>((sp, options) =>
         {
             options.UseNpgsql(connectionString, npgsql =>
                 npgsql.MigrationsHistoryTable(
                     tableName: "__ef_migrations_history",
                     schema: ReconciliationDbContext.SchemaName));
+            options.AddInterceptors(sp.GetRequiredService<DomainEventToOutboxInterceptor>());
         });
 
         services.AddScoped<IUnitOfWork, UnitOfWork>();
+        services.AddScoped<IRefundSagaRepository, RefundSagaRepository>();
+
+        services.Configure<PaymentServiceOptions>(configuration.GetSection(PaymentServiceOptions.SectionName));
+        services.AddHttpClient<IPaymentRefundClient, HttpPaymentRefundClient>((sp, client) =>
+        {
+            var opts = sp.GetRequiredService<IOptions<PaymentServiceOptions>>().Value;
+            client.BaseAddress = new Uri(opts.BaseUrl.TrimEnd('/') + "/");
+            client.Timeout = TimeSpan.FromSeconds(opts.TimeoutSeconds);
+        });
 
         // Outbox publishing + consumer side both ride on the Kafka building
-        // block. The saga (M4.D) will use AddPayFlowKafkaConsumer<TPayload,
-        // THandler>() to bind RefundRequested → its handler.
+        // block. The actual RefundRequested → consumer binding is registered
+        // by the API layer via AddPayFlowKafkaConsumer<,>().
         services.AddPayFlowKafkaOutboxPublisher(configuration);
         services.AddPayFlowOutbox<ReconciliationDbContext>(configuration);
         services.AddPayFlowKafkaConsuming(configuration);

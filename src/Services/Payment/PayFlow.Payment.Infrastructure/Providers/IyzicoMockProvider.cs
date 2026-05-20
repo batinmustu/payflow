@@ -34,4 +34,24 @@ internal sealed class IyzicoMockProvider : IPaymentProvider
             LatencyMilliseconds: stopwatch.ElapsedMilliseconds,
             RawResponse: raw);
     }
+
+    public async Task<RefundResult> RefundAsync(RefundRequest request, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        var stopwatch = Stopwatch.StartNew();
+        await Task.Delay(95, ct);
+        stopwatch.Stop();
+
+        var providerReference = "iyz_rf_" + Guid.NewGuid().ToString("N")[..12];
+        var raw = $"{{\"refundId\":\"{providerReference}\",\"status\":\"SUCCESS\",\"paymentTransactionId\":\"{request.ProviderReference}\"}}";
+
+        return new RefundResult(
+            ProviderCode: Code,
+            Status: RefundStatus.Refunded,
+            ProviderReference: providerReference,
+            DeclineCode: null,
+            LatencyMilliseconds: stopwatch.ElapsedMilliseconds,
+            RawResponse: raw);
+    }
 }

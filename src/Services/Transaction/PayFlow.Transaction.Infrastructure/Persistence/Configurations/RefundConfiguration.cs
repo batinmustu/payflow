@@ -23,6 +23,7 @@ internal sealed class RefundConfiguration : IEntityTypeConfiguration<Refund>
             .IsRequired();
         builder.Property(r => r.RequestedBy).HasColumnName("requested_by").HasMaxLength(128).IsRequired();
         builder.Property(r => r.FinalProviderCode).HasColumnName("final_provider_code").HasMaxLength(32).IsRequired();
+        builder.Property(r => r.FinalProviderReference).HasColumnName("final_provider_reference").HasMaxLength(64).IsRequired();
         builder.Property(r => r.FailureReason).HasColumnName("failure_reason").HasMaxLength(64);
         builder.Property(r => r.RequestedAt).HasColumnName("requested_at").IsRequired();
         builder.Property(r => r.CompletedAt).HasColumnName("completed_at");

@@ -2,6 +2,11 @@ using PayFlow.SharedKernel;
 
 namespace PayFlow.Transaction.Domain.Refunds;
 
+/// <summary>
+/// The only refund integration event TX emits. The <c>Processing</c>,
+/// <c>Completed</c>, and <c>Failed</c> events all flow the other way — from
+/// the Reconciliation saga back into TX — so we don't model them here.
+/// </summary>
 public sealed record RefundRequestedDomainEvent(
     Guid RefundId,
     Guid TransactionId,
@@ -9,34 +14,10 @@ public sealed record RefundRequestedDomainEvent(
     long AmountMinor,
     string Currency,
     string RequestedBy,
-    string FinalProviderCode)
+    string FinalProviderCode,
+    string FinalProviderReference)
     : DomainEvent, IIntegrationDomainEvent
 {
     Guid IIntegrationDomainEvent.AggregateId => RefundId;
     string IIntegrationDomainEvent.EventType => "payflow.refund.requested.v1";
-}
-
-public sealed record RefundCompletedDomainEvent(
-    Guid RefundId,
-    Guid TransactionId,
-    Guid TenantId,
-    long AmountMinor,
-    string Currency,
-    string ProviderCode,
-    string ProviderReference)
-    : DomainEvent, IIntegrationDomainEvent
-{
-    Guid IIntegrationDomainEvent.AggregateId => RefundId;
-    string IIntegrationDomainEvent.EventType => "payflow.refund.completed.v1";
-}
-
-public sealed record RefundFailedDomainEvent(
-    Guid RefundId,
-    Guid TransactionId,
-    Guid TenantId,
-    string FailureReason)
-    : DomainEvent, IIntegrationDomainEvent
-{
-    Guid IIntegrationDomainEvent.AggregateId => RefundId;
-    string IIntegrationDomainEvent.EventType => "payflow.refund.failed.v1";
 }

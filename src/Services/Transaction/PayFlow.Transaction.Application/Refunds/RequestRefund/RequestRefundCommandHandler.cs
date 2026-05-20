@@ -35,10 +35,10 @@ internal sealed class RequestRefundCommandHandler
             return Result.Failure<RequestRefundResponse>("TRANSACTION_NOT_FOUND");
         }
 
-        // Only Captured transactions can be refunded. Once a refund completes
-        // and Transaction grows a PartiallyRefunded state in M4.E, this check
-        // will broaden.
-        if (transaction.State != TransactionState.Captured)
+        // Captured or PartiallyRefunded — both still have refundable balance.
+        // Initiated/Failed/Refunded reject; Refunded specifically means the
+        // captured amount is fully consumed.
+        if (transaction.State is not (TransactionState.Captured or TransactionState.PartiallyRefunded))
         {
             return Result.Failure<RequestRefundResponse>("REFUND_NOT_ALLOWED_IN_STATE");
         }
@@ -61,7 +61,8 @@ internal sealed class RequestRefundCommandHandler
             amountMinor: command.AmountMinor,
             currency: transaction.Currency,
             requestedBy: command.RequestedBy,
-            finalProviderCode: transaction.FinalProviderCode!);
+            finalProviderCode: transaction.FinalProviderCode!,
+            finalProviderReference: transaction.ProviderReference!);
 
         if (refundResult.IsFailure)
         {

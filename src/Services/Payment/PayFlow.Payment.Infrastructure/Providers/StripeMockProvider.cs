@@ -38,4 +38,24 @@ internal sealed class StripeMockProvider : IPaymentProvider
             LatencyMilliseconds: stopwatch.ElapsedMilliseconds,
             RawResponse: raw);
     }
+
+    public async Task<RefundResult> RefundAsync(RefundRequest request, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        var stopwatch = Stopwatch.StartNew();
+        await Task.Delay(80, ct);
+        stopwatch.Stop();
+
+        var providerReference = "rf_" + Guid.NewGuid().ToString("N")[..16];
+        var raw = $"{{\"id\":\"{providerReference}\",\"object\":\"refund\",\"status\":\"succeeded\",\"amount\":{request.AmountMinor.ToString(CultureInfo.InvariantCulture)},\"payment_intent\":\"{request.ProviderReference}\"}}";
+
+        return new RefundResult(
+            ProviderCode: Code,
+            Status: RefundStatus.Refunded,
+            ProviderReference: providerReference,
+            DeclineCode: null,
+            LatencyMilliseconds: stopwatch.ElapsedMilliseconds,
+            RawResponse: raw);
+    }
 }

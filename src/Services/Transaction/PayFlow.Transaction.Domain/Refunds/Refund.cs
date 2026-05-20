@@ -23,6 +23,9 @@ public sealed class Refund : AggregateRoot<Guid>
     public DateTimeOffset? CompletedAt { get; private set; }
     public DateTimeOffset? FailedAt { get; private set; }
 
+    /// <summary>The provider's reference for the original capture (e.g. <c>ch_abc</c>). Saga needs it to call the refund endpoint.</summary>
+    public string FinalProviderReference { get; private set; }
+
     private Refund(
         Guid id,
         Guid tenantId,
@@ -31,6 +34,7 @@ public sealed class Refund : AggregateRoot<Guid>
         string currency,
         string requestedBy,
         string finalProviderCode,
+        string finalProviderReference,
         RefundState state,
         DateTimeOffset requestedAt)
     {
@@ -41,6 +45,7 @@ public sealed class Refund : AggregateRoot<Guid>
         Currency = currency;
         RequestedBy = requestedBy;
         FinalProviderCode = finalProviderCode;
+        FinalProviderReference = finalProviderReference;
         State = state;
         RequestedAt = requestedAt;
     }
@@ -51,7 +56,8 @@ public sealed class Refund : AggregateRoot<Guid>
         long amountMinor,
         string currency,
         string requestedBy,
-        string finalProviderCode)
+        string finalProviderCode,
+        string finalProviderReference)
     {
         if (tenantId == Guid.Empty)
         {
@@ -77,6 +83,10 @@ public sealed class Refund : AggregateRoot<Guid>
         {
             return Result.Failure<Refund>("PROVIDER_REQUIRED");
         }
+        if (string.IsNullOrWhiteSpace(finalProviderReference))
+        {
+            return Result.Failure<Refund>("PROVIDER_REFERENCE_REQUIRED");
+        }
 
         var refund = new Refund(
             id: Guid.NewGuid(),
@@ -86,6 +96,7 @@ public sealed class Refund : AggregateRoot<Guid>
             currency: currency.Trim().ToUpperInvariant(),
             requestedBy: requestedBy.Trim(),
             finalProviderCode: finalProviderCode.Trim().ToLowerInvariant(),
+            finalProviderReference: finalProviderReference.Trim(),
             state: RefundState.Requested,
             requestedAt: DateTimeOffset.UtcNow);
 
@@ -96,7 +107,8 @@ public sealed class Refund : AggregateRoot<Guid>
             AmountMinor: refund.AmountMinor,
             Currency: refund.Currency,
             RequestedBy: refund.RequestedBy,
-            FinalProviderCode: refund.FinalProviderCode));
+            FinalProviderCode: refund.FinalProviderCode,
+            FinalProviderReference: refund.FinalProviderReference));
 
         return Result.Success(refund);
     }
@@ -108,6 +120,10 @@ public sealed class Refund : AggregateRoot<Guid>
         State = RefundState.Processing;
     }
 
+    /// <summary>
+    /// Reaction to <c>payflow.refund.completed.v1</c> from Reconciliation.
+    /// Pure state change — TX does not re-emit a completed event.
+    /// </summary>
     public void MarkCompleted(string providerReference)
     {
         EnsureState(RefundState.Requested, RefundState.Processing);
@@ -115,17 +131,12 @@ public sealed class Refund : AggregateRoot<Guid>
 
         State = RefundState.Completed;
         CompletedAt = DateTimeOffset.UtcNow;
-
-        Raise(new RefundCompletedDomainEvent(
-            RefundId: Id,
-            TransactionId: TransactionId,
-            TenantId: TenantId,
-            AmountMinor: AmountMinor,
-            Currency: Currency,
-            ProviderCode: FinalProviderCode,
-            ProviderReference: providerReference));
     }
 
+    /// <summary>
+    /// Reaction to <c>payflow.refund.failed.v1</c> from Reconciliation.
+    /// Pure state change — TX does not re-emit a failed event.
+    /// </summary>
     public void MarkFailed(string failureReason)
     {
         EnsureState(RefundState.Requested, RefundState.Processing);
@@ -134,12 +145,6 @@ public sealed class Refund : AggregateRoot<Guid>
         State = RefundState.Failed;
         FailureReason = failureReason;
         FailedAt = DateTimeOffset.UtcNow;
-
-        Raise(new RefundFailedDomainEvent(
-            RefundId: Id,
-            TransactionId: TransactionId,
-            TenantId: TenantId,
-            FailureReason: failureReason));
     }
 
     private void EnsureState(params RefundState[] expected)

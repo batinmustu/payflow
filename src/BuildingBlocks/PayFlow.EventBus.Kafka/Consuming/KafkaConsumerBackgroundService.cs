@@ -44,6 +44,13 @@ public sealed class KafkaConsumerBackgroundService : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        // The polling loop below runs the synchronous Confluent consumer
+        // (.Consume blocks the calling thread). Without this yield the whole
+        // body runs to the first message before the host's StartAsync gets to
+        // bind Kestrel — i.e. /health would never become reachable until
+        // traffic arrived. Yielding once lets startup complete normally.
+        await Task.Yield();
+
         if (_registry.EventTypes.Count == 0)
         {
             _logger.LogWarning(

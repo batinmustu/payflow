@@ -17,6 +17,9 @@ internal static class ErrorMapping
             ["AMOUNT_INVALID"] = ("AmountMinor", StatusCodes.Status422UnprocessableEntity),
             ["CURRENCY_NOT_SUPPORTED"] = ("Currency", StatusCodes.Status422UnprocessableEntity),
             ["CARD_TOKEN_INVALID"] = ("CardToken", StatusCodes.Status422UnprocessableEntity),
+            ["TRANSACTION_REQUIRED"] = ("TransactionId", StatusCodes.Status422UnprocessableEntity),
+            ["PROVIDER_REFERENCE_REQUIRED"] = ("ProviderReference", StatusCodes.Status422UnprocessableEntity),
+            ["IDEMPOTENCY_KEY_REQUIRED"] = ("IdempotencyKey", StatusCodes.Status422UnprocessableEntity),
         };
 
     public static IResult ToProblem(string errorCode)

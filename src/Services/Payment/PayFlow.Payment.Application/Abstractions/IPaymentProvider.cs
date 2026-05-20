@@ -21,4 +21,13 @@ public interface IPaymentProvider
     string Code { get; }
 
     Task<PaymentResult> ChargeAsync(PaymentRequest request, CancellationToken ct);
+
+    /// <summary>
+    /// Refund the original charge identified by
+    /// <see cref="RefundRequest.ProviderReference"/>. Mocks always succeed
+    /// with <see cref="RefundStatus.Refunded"/>; a real adapter classifies
+    /// the provider's response into the three states of
+    /// <see cref="RefundStatus"/>.
+    /// </summary>
+    Task<RefundResult> RefundAsync(RefundRequest request, CancellationToken ct);
 }

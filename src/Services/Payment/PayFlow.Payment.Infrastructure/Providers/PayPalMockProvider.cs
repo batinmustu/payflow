@@ -48,4 +48,36 @@ internal sealed class PayPalMockProvider : IPaymentProvider
             LatencyMilliseconds: stopwatch.ElapsedMilliseconds,
             RawResponse: raw);
     }
+
+    public async Task<RefundResult> RefundAsync(RefundRequest request, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        var stopwatch = Stopwatch.StartNew();
+        await Task.Delay(110, ct);
+        stopwatch.Stop();
+
+        // Same "test card" gate as ChargeAsync — last two digits of the
+        // refund amount decide the branch. Demos exercise the saga's
+        // Declined path without an external service.
+        var lastTwo = (int)(request.AmountMinor % 100);
+        var (status, declineCode) = lastTwo switch
+        {
+            13 => (RefundStatus.Declined, "TRANSACTION_TOO_OLD"),
+            _ => (RefundStatus.Refunded, (string?)null),
+        };
+
+        var providerReference = status == RefundStatus.Refunded
+            ? "RFND-" + Guid.NewGuid().ToString("N")[..16]
+            : null;
+        var raw = $"{{\"id\":\"{providerReference}\",\"status\":\"{status}\",\"amount\":{request.AmountMinor},\"capture_id\":\"{request.ProviderReference}\"}}";
+
+        return new RefundResult(
+            ProviderCode: Code,
+            Status: status,
+            ProviderReference: providerReference,
+            DeclineCode: declineCode,
+            LatencyMilliseconds: stopwatch.ElapsedMilliseconds,
+            RawResponse: raw);
+    }
 }
