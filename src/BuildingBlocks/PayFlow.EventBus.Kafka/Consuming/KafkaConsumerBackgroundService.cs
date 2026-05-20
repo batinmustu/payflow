@@ -1,9 +1,13 @@
+using System.Diagnostics;
 using System.Text.Json;
 using Confluent.Kafka;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using OpenTelemetry;
+using OpenTelemetry.Context.Propagation;
+using PayFlow.EventBus.Kafka.Telemetry;
 
 namespace PayFlow.EventBus.Kafka.Consuming;
 
@@ -164,6 +168,23 @@ public sealed class KafkaConsumerBackgroundService : BackgroundService
             return DispatchOutcome.Advance;
         }
 
+        // Pull the producer's W3C trace context out of the headers so the
+        // consumer span attaches to the right parent. Without this every
+        // consume looks like a fresh trace in Jaeger.
+        var parentContext = KafkaTelemetry.Extract(result.Message.Headers);
+        Baggage.Current = parentContext.Baggage;
+
+        using var activity = KafkaTelemetry.ConsumerSource.StartActivity(
+            $"kafka.consume {eventType}",
+            ActivityKind.Consumer,
+            parentContext.ActivityContext);
+        activity?.SetTag("messaging.system", "kafka");
+        activity?.SetTag("messaging.source.name", result.Topic);
+        activity?.SetTag("messaging.kafka.partition", result.Partition.Value);
+        activity?.SetTag("messaging.kafka.offset", result.Offset.Value);
+        if (headers.TryGetValue("message_id", out var msgId)) activity?.SetTag("messaging.message.id", msgId);
+        if (headers.TryGetValue("tenant_id", out var tid)) activity?.SetTag("payflow.tenant_id", tid);
+
         using var scope = _services.CreateScope();
         try
         {
@@ -172,6 +193,7 @@ public sealed class KafkaConsumerBackgroundService : BackgroundService
         }
         catch (Exception ex)
         {
+            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
             var attempts = _retryCounts.TryGetValue(result.TopicPartitionOffset, out var n) ? n + 1 : 1;
             _retryCounts[result.TopicPartitionOffset] = attempts;
 

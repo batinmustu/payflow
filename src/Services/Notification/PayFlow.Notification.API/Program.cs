@@ -47,6 +47,7 @@ app.UseStatusCodePages();
 app.UseAuthentication();
 app.UsePayFlowMultitenancy();
 app.UseAuthorization();
+app.UsePayFlowLogEnrichment();
 
 app.MapHealthChecks("/health");
 app.MapNotificationEndpoints();

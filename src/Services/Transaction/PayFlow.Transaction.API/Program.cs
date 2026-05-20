@@ -52,6 +52,7 @@ app.UsePayFlowMultitenancy();
 // the endpoint pipeline.
 app.UsePayFlowIdempotency();
 app.UseAuthorization();
+app.UsePayFlowLogEnrichment();
 
 app.MapHealthChecks("/health");
 app.MapTransactionEndpoints();

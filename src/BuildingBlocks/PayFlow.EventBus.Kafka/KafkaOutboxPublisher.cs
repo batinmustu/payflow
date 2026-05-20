@@ -1,8 +1,10 @@
+using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
 using Confluent.Kafka;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using PayFlow.EventBus.Kafka.Telemetry;
 using PayFlow.Outbox;
 
 namespace PayFlow.EventBus.Kafka;
@@ -42,11 +44,29 @@ public sealed class KafkaOutboxPublisher : IOutboxPublisher, IAsyncDisposable, I
     {
         ArgumentNullException.ThrowIfNull(message);
 
+        // Open a producer span so the consumer's span has a parent. The
+        // header injection below is what carries the trace context across
+        // the broker; the activity itself shows up in Jaeger as
+        // "kafka.publish {topic}".
+        using var activity = KafkaTelemetry.ProducerSource.StartActivity(
+            $"kafka.publish {message.EventType}",
+            ActivityKind.Producer);
+        activity?.SetTag("messaging.system", "kafka");
+        activity?.SetTag("messaging.destination.name", message.EventType);
+        activity?.SetTag("messaging.message.id", message.Id.ToString("N"));
+        activity?.SetTag("payflow.tenant_id", message.TenantId.ToString("N"));
+
+        var headers = BuildHeaders(message);
+        if (activity is not null)
+        {
+            KafkaTelemetry.Inject(activity, headers);
+        }
+
         var msg = new Message<string, byte[]>
         {
             Key = message.TenantId.ToString("N"),
             Value = Encoding.UTF8.GetBytes(message.Payload),
-            Headers = BuildHeaders(message),
+            Headers = headers,
         };
 
         using var produceCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
@@ -58,9 +78,12 @@ public sealed class KafkaOutboxPublisher : IOutboxPublisher, IAsyncDisposable, I
             _logger.LogDebug(
                 "Outbox → Kafka: {EventType} partition={Partition} offset={Offset}",
                 message.EventType, delivery.Partition.Value, delivery.Offset.Value);
+            activity?.SetTag("messaging.kafka.partition", delivery.Partition.Value);
+            activity?.SetTag("messaging.kafka.offset", delivery.Offset.Value);
         }
         catch (ProduceException<string, byte[]> ex)
         {
+            activity?.SetStatus(ActivityStatusCode.Error, ex.Error.Reason);
             // Bubble up so the outbox worker marks the row Failed + schedules a retry.
             throw new InvalidOperationException(
                 $"Kafka produce failed for {message.EventType}: {ex.Error.Reason}", ex);
