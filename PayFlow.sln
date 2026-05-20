@@ -77,6 +77,16 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PayFlow.EventBus.Kafka", "s
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PayFlow.EventBus.Kafka.UnitTests", "tests\BuildingBlocks\PayFlow.EventBus.Kafka.UnitTests\PayFlow.EventBus.Kafka.UnitTests.csproj", "{3A9596FB-45E0-477C-B4FF-772E3DDB3736}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Reconciliation", "Reconciliation", "{30C7D3B4-9C83-4024-881A-64C20D8B766A}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PayFlow.Reconciliation.Domain", "src\Services\Reconciliation\PayFlow.Reconciliation.Domain\PayFlow.Reconciliation.Domain.csproj", "{6581F992-C0B8-4214-8290-11B8B114F043}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PayFlow.Reconciliation.Application", "src\Services\Reconciliation\PayFlow.Reconciliation.Application\PayFlow.Reconciliation.Application.csproj", "{E21A0CC3-DC1C-414E-8649-09C0D77A1F9A}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PayFlow.Reconciliation.Infrastructure", "src\Services\Reconciliation\PayFlow.Reconciliation.Infrastructure\PayFlow.Reconciliation.Infrastructure.csproj", "{E1B30EB4-7B34-4C79-83A8-6E17183E78B8}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PayFlow.Reconciliation.API", "src\Services\Reconciliation\PayFlow.Reconciliation.API\PayFlow.Reconciliation.API.csproj", "{0619FCF4-944B-4987-A494-169F1583180A}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -194,6 +204,22 @@ Global
 		{3A9596FB-45E0-477C-B4FF-772E3DDB3736}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{3A9596FB-45E0-477C-B4FF-772E3DDB3736}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{3A9596FB-45E0-477C-B4FF-772E3DDB3736}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6581F992-C0B8-4214-8290-11B8B114F043}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6581F992-C0B8-4214-8290-11B8B114F043}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6581F992-C0B8-4214-8290-11B8B114F043}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6581F992-C0B8-4214-8290-11B8B114F043}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E21A0CC3-DC1C-414E-8649-09C0D77A1F9A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E21A0CC3-DC1C-414E-8649-09C0D77A1F9A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E21A0CC3-DC1C-414E-8649-09C0D77A1F9A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E21A0CC3-DC1C-414E-8649-09C0D77A1F9A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E1B30EB4-7B34-4C79-83A8-6E17183E78B8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E1B30EB4-7B34-4C79-83A8-6E17183E78B8}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E1B30EB4-7B34-4C79-83A8-6E17183E78B8}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E1B30EB4-7B34-4C79-83A8-6E17183E78B8}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0619FCF4-944B-4987-A494-169F1583180A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0619FCF4-944B-4987-A494-169F1583180A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0619FCF4-944B-4987-A494-169F1583180A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0619FCF4-944B-4987-A494-169F1583180A}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{7B07A325-335D-4B77-9659-88C05FD3ED47} = {9E9980C9-561A-4404-8953-81F9E1A75CA6}
@@ -231,5 +257,10 @@ Global
 		{DF9EE711-51B1-4A9B-8FE7-991D689B6A08} = {1076D34A-7535-4FC9-A44C-1E916A659ACA}
 		{B5DA1EFB-4953-4E4B-9BAC-2C89D58FB821} = {7B07A325-335D-4B77-9659-88C05FD3ED47}
 		{3A9596FB-45E0-477C-B4FF-772E3DDB3736} = {1076D34A-7535-4FC9-A44C-1E916A659ACA}
+		{30C7D3B4-9C83-4024-881A-64C20D8B766A} = {9DF76550-37D7-4036-B501-0B78D594C51D}
+		{6581F992-C0B8-4214-8290-11B8B114F043} = {30C7D3B4-9C83-4024-881A-64C20D8B766A}
+		{E21A0CC3-DC1C-414E-8649-09C0D77A1F9A} = {30C7D3B4-9C83-4024-881A-64C20D8B766A}
+		{E1B30EB4-7B34-4C79-83A8-6E17183E78B8} = {30C7D3B4-9C83-4024-881A-64C20D8B766A}
+		{0619FCF4-944B-4987-A494-169F1583180A} = {30C7D3B4-9C83-4024-881A-64C20D8B766A}
 	EndGlobalSection
 EndGlobal
