@@ -41,6 +41,7 @@
     <PackageVersion Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="8.0.0" />
     <PackageVersion Include="System.IdentityModel.Tokens.Jwt" Version="8.18.0" />
     <PackageVersion Include="Microsoft.Extensions.Http" Version="8.0.1" />
+    <PackageVersion Include="StackExchange.Redis" Version="2.13.1" />
   </ItemGroup>
 
   <ItemGroup Label="Gateway — YARP reverse proxy">

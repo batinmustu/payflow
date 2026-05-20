@@ -38,8 +38,11 @@ services:
     container_name: payflow-redis
     restart: unless-stopped
     command: ["redis-server", "--save", "", "--appendonly", "no"]
+    # Host port 6380 (not 6379) so a developer's native Redis on 6379 does
+    # not win the "127.0.0.1 specific binding > docker wildcard" race —
+    # same shape as the postgres conflict on 5432/5433.
     ports:
-      - "6379:6379"
+      - "6380:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s

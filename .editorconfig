@@ -375,6 +375,13 @@ csharp_style_pattern_matching_over_is_with_cast_check = true:suggestion
 # coding convention (see docs/onboarding/coding-standards.md "Result type").
 dotnet_diagnostic.CA1000.severity = none
 
+# CA1848: Use LoggerMessage delegates instead of LoggerExtensions methods.
+# Suggestion only — the perf delta is negligible for cold paths (auth
+# failures, idempotency store hiccups), and the boilerplate cost is real.
+# Hot-path code that genuinely benefits from the source-generated delegate
+# can opt in with the [LoggerMessage] attribute.
+dotnet_diagnostic.CA1848.severity = none
+
 # Test projects: relax conventions that conflict with xUnit-style test names.
 [tests/**/*.cs]
 # CA1707: Identifiers should not contain underscores.
