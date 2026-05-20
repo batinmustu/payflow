@@ -29,7 +29,8 @@ public sealed record TransactionFailedDomainEvent(
     Guid TransactionId,
     Guid TenantId,
     string FailureReason,
-    string? ProviderCodeAttempted) : DomainEvent, IIntegrationDomainEvent
+    string? ProviderCodeAttempted,
+    string Currency) : DomainEvent, IIntegrationDomainEvent
 {
     Guid IIntegrationDomainEvent.AggregateId => TransactionId;
     string IIntegrationDomainEvent.EventType => "payflow.transaction.failed.v1";

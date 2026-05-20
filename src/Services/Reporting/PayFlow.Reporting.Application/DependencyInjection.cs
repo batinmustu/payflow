@@ -1,5 +1,6 @@
 using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
+using PayFlow.Reporting.Application.Projections;
 
 namespace PayFlow.Reporting.Application;
 
@@ -12,6 +13,7 @@ public static class DependencyInjection
         var assembly = typeof(DependencyInjection).Assembly;
         services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(assembly));
         services.AddValidatorsFromAssembly(assembly);
+        services.AddScoped<SummaryProjectionService>();
         return services;
     }
 }

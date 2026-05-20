@@ -130,7 +130,8 @@ public sealed class Transaction : AggregateRoot<Guid>
             TransactionId: Id,
             TenantId: TenantId,
             FailureReason: failureReason,
-            ProviderCodeAttempted: providerCodeAttempted));
+            ProviderCodeAttempted: providerCodeAttempted,
+            Currency: Currency));
     }
 
     /// <summary>
