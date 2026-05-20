@@ -4,18 +4,22 @@ A reference implementation of a multi-tenant payment orchestration platform, bui
 
 The audience for this repo is *engineers reading the code*. The docs describe the architectural decisions in the way you would defend them in a review, not the way a marketing page would describe them.
 
-> **Status:** documentation-first. The code is being built incrementally; the docs commit was the first pass at thinking through the design. Expect doc drift as the code lands.
+## Status
 
-## What's planned
+| Milestone                                                  | State |
+|------------------------------------------------------------|-------|
+| M0 Foundation (sln, infra, observability)                  | ✅    |
+| M1 Identity & Gateway                                      | ✅    |
+| M2 Payment (provider Strategy + Adapter)                   | ✅    |
+| M3 Transaction + Eventing (outbox + Kafka)                 | ✅    |
+| M4 Reconciliation + refund saga                            | ✅    |
+| M5 Reporting (CQRS read-side projections)                  | ✅    |
+| M6 Notification (Kafka-driven email log)                   | ✅    |
+| M8 Observability (Kafka trace propagation + log enrichers) | partial — diagrams + dashboards landing |
+| M9 Deployment (prod compose + CI)                          | pending |
+| M7 AI Assistant (RAG over pgvector)                        | pending (sequenced last) |
 
-- **API Gateway** (YARP) — JWT validation, rate limiting, request routing.
-- **Identity** — tenants, users, roles, API keys, JWT issuance.
-- **Payment** — provider abstraction with Iyzico, Stripe, PayPal (mock) adapters.
-- **Transaction** — transaction lifecycle, idempotency, the outbox, intelligent routing.
-- **Reconciliation** — daily statement matching (Hangfire), the refund saga.
-- **Notification** — Kafka-driven email/SMS dispatch, RabbitMQ retry queue.
-- **Reporting** — CQRS read projections, dashboard endpoints.
-- **AI Assistant** — RAG pipeline over pgvector, OpenAI + Anthropic behind a swap-friendly abstraction.
+Six services online (Identity, Payment, Transaction, Reconciliation, Reporting, Notification) behind a YARP gateway. 183 unit + integration tests green. End-to-end traces span every service in one Jaeger view — Kafka is no longer a trace boundary.
 
 ## The 30-second tour
 
@@ -40,11 +44,30 @@ flowchart LR
 
 A merchant calls `POST /api/transactions`. Gateway authenticates, forwards to the Transaction service. Transaction picks a provider per the tenant's routing rule and calls Payment. Payment's adapter speaks the provider's protocol. On commit, Transaction writes an outbox row in the same DB transaction; a publisher worker delivers it to Kafka. Reporting, Notification, and Reconciliation react asynchronously.
 
-The longer version is in [docs/flows/payment-happy-path.md](docs/flows/payment-happy-path.md).
+The full runtime topology (ports, schemas, telemetry sinks) is in [docs/diagrams/runtime-topology.md](docs/diagrams/runtime-topology.md); the [end-to-end trace walkthrough](docs/diagrams/end-to-end-trace.md) follows one refund's spans through every service; the [payment happy path](docs/flows/payment-happy-path.md) is the request-level narrative.
 
 ## Getting started
 
-The local stack is `docker-compose`-based — see [docs/devops/local-stack.md](docs/devops/local-stack.md). The code is not there yet; the doc describes the intended setup.
+```sh
+# 1. Bring up infrastructure (Postgres, Kafka, Redis, RabbitMQ, Jaeger, Seq)
+docker compose -f deploy/docker-compose.infra.yml up -d
+
+# 2. Build the solution
+dotnet build PayFlow.sln
+
+# 3. Run each service in its own shell (or background as you prefer)
+dotnet run --project src/Services/Identity/PayFlow.Identity.API           --urls=http://127.0.0.1:5001
+dotnet run --project src/Services/Payment/PayFlow.Payment.API             --urls=http://127.0.0.1:5002
+dotnet run --project src/Services/Transaction/PayFlow.Transaction.API     --urls=http://127.0.0.1:5003
+dotnet run --project src/Services/Reconciliation/PayFlow.Reconciliation.API --urls=http://127.0.0.1:5004
+dotnet run --project src/Services/Reporting/PayFlow.Reporting.API         --urls=http://127.0.0.1:5005
+dotnet run --project src/Services/Notification/PayFlow.Notification.API   --urls=http://127.0.0.1:5006
+dotnet run --project src/ApiGateway/PayFlow.Gateway                       --urls=http://127.0.0.1:5050
+```
+
+Each service applies its EF Core migrations on startup in Development. The Postman collection at `planning/PayFlow.postman_collection.json` exercises every endpoint; replay the requests in the order shown in the folders. Full local-stack notes (ports, healthcheck commands, observability sinks) live in [docs/devops/local-stack.md](docs/devops/local-stack.md).
+
+Useful local URLs once everything is up: **Jaeger** at `http://localhost:16686`, **Seq** at `http://localhost:5341`, **RabbitMQ management** at `http://localhost:15672` (guest / guest).
 
 ## Where to look
 
@@ -61,6 +84,8 @@ The local stack is `docker-compose`-based — see [docs/devops/local-stack.md](d
 
 - [C4 — Context diagram](docs/architecture/c4-context.md) and [Container diagram](docs/architecture/c4-container.md)
 - [Bounded contexts](docs/architecture/bounded-contexts.md)
+- [Runtime topology](docs/diagrams/runtime-topology.md) — actual processes, ports, and wire-traffic arrows on the local stack
+- [End-to-end trace walkthrough](docs/diagrams/end-to-end-trace.md) — one refund's spans across all services
 
 ### How the signature flows work
 
