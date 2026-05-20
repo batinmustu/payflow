@@ -21,6 +21,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\..\src\Services\Transaction\PayFlow.Transaction.Domain\PayFlow.Transaction.Domain.csproj" />
+    <ProjectReference Include="..\..\..\src\Services\Transaction\PayFlow.Transaction.Application\PayFlow.Transaction.Application.csproj" />
   </ItemGroup>
 
 </Project>
