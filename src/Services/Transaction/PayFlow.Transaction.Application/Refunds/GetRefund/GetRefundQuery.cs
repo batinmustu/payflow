@@ -17,6 +17,7 @@ public sealed record GetRefundResponse(
     string Currency,
     string RequestedBy,
     string FinalProviderCode,
+    string? ProviderRefundReference,
     string? FailureReason,
     DateTimeOffset RequestedAt,
     DateTimeOffset? CompletedAt,

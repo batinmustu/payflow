@@ -3,6 +3,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using PayFlow.EventBus.Kafka;
+using PayFlow.Multitenancy;
 using PayFlow.Outbox;
 using PayFlow.Reconciliation.Application.Abstractions;
 using PayFlow.Reconciliation.Infrastructure.Payments;
@@ -39,12 +40,14 @@ public static class DependencyInjection
 
         services.Configure<PaymentServiceOptions>(configuration.GetSection(PaymentServiceOptions.SectionName));
         services.AddSingleton<IServiceTokenIssuer, ServiceTokenIssuer>();
+        services.AddTransient<RetryingHttpMessageHandler>();
         services.AddHttpClient<IPaymentRefundClient, HttpPaymentRefundClient>((sp, client) =>
         {
             var opts = sp.GetRequiredService<IOptions<PaymentServiceOptions>>().Value;
             client.BaseAddress = new Uri(opts.BaseUrl.TrimEnd('/') + "/");
             client.Timeout = TimeSpan.FromSeconds(opts.TimeoutSeconds);
-        });
+        })
+        .AddHttpMessageHandler<RetryingHttpMessageHandler>();
 
         // Outbox publishing + consumer side both ride on the Kafka building
         // block. The actual RefundRequested → consumer binding is registered

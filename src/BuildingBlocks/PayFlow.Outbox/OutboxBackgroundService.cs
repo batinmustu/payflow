@@ -11,9 +11,11 @@ namespace PayFlow.Outbox;
 /// <see cref="IOutboxPublisher"/>, and walks rows through the state machine
 /// in docs/database/outbox.md.
 ///
-/// Consuming services host the service by calling
-/// <see cref="OutboxServiceCollectionExtensions.AddPayFlowOutbox{T}"/> in
-/// their DI setup. One service hosts one publisher worker per process.
+/// HA-safe: row claim uses <c>SELECT … FOR UPDATE SKIP LOCKED</c> inside a
+/// short transaction, so multiple instances of the worker can run side by
+/// side without re-publishing the same row. A periodic sweep resets rows
+/// stuck in <c>Publishing</c> back to <c>Pending</c> (in case a previous
+/// instance crashed between marking and publishing).
 /// </summary>
 public sealed class OutboxBackgroundService<TContext> : BackgroundService
     where TContext : DbContext
@@ -29,6 +31,7 @@ public sealed class OutboxBackgroundService<TContext> : BackgroundService
         IOptions<OutboxOptions> options,
         ILogger<OutboxBackgroundService<TContext>> logger)
     {
+        ArgumentNullException.ThrowIfNull(options);
         _services = services;
         _publisher = publisher;
         _options = options.Value;
@@ -38,6 +41,8 @@ public sealed class OutboxBackgroundService<TContext> : BackgroundService
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         await SweepStuckPublishingAsync(stoppingToken);
+        var lastSweep = DateTimeOffset.UtcNow;
+        var sweepInterval = TimeSpan.FromSeconds(_options.StuckSweepIntervalSeconds);
 
         while (!stoppingToken.IsCancellationRequested)
         {
@@ -56,6 +61,14 @@ public sealed class OutboxBackgroundService<TContext> : BackgroundService
                 processed = 0;
             }
 
+            if (DateTimeOffset.UtcNow - lastSweep >= sweepInterval)
+            {
+                try { await SweepStuckPublishingAsync(stoppingToken); }
+                catch (OperationCanceledException) { break; }
+                catch (Exception ex) { _logger.LogError(ex, "Outbox stuck-sweep failed"); }
+                lastSweep = DateTimeOffset.UtcNow;
+            }
+
             if (processed == 0)
             {
                 try
@@ -72,53 +85,84 @@ public sealed class OutboxBackgroundService<TContext> : BackgroundService
 
     private async Task<int> ProcessBatchAsync(CancellationToken ct)
     {
-        await using var scope = _services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<TContext>();
-
-        var now = DateTimeOffset.UtcNow;
-        var set = db.Set<OutboxMessage>();
-
-        var batch = await set
-            .Where(m => (m.State == OutboxMessageState.Pending || m.State == OutboxMessageState.Failed)
-                       && m.NextAttemptAt <= now)
-            .OrderBy(m => m.CreatedAt)
-            .Take(_options.BatchSize)
-            .ToListAsync(ct);
-
-        if (batch.Count == 0)
+        // 1) Atomic claim: SELECT … FOR UPDATE SKIP LOCKED + state=Publishing,
+        // all inside one short transaction so other workers don't see these
+        // rows until we've committed.
+        List<Guid> claimedIds;
+        await using (var scope = _services.CreateAsyncScope())
         {
-            return 0;
+            var db = scope.ServiceProvider.GetRequiredService<TContext>();
+            var schema = db.Model.GetDefaultSchema() ?? "public";
+            var now = DateTimeOffset.UtcNow;
+            var batchSize = _options.BatchSize;
+
+            await using var tx = await db.Database.BeginTransactionAsync(ct);
+
+            // Schema is derived from the context's HasDefaultSchema, not from
+            // request data — safe to interpolate into the SQL string. {0} and
+            // {1} stay as FromSqlRaw parameter placeholders.
+            var sql =
+                $"SELECT * FROM \"{schema}\".\"outbox_messages\" " +
+                "WHERE state IN ('Pending', 'Failed') AND next_attempt_at <= {0} " +
+                "ORDER BY created_at LIMIT {1} FOR UPDATE SKIP LOCKED";
+
+            var batch = await db.Set<OutboxMessage>()
+                .FromSqlRaw(sql, now, batchSize)
+                .ToListAsync(ct);
+
+            if (batch.Count == 0)
+            {
+                await tx.CommitAsync(ct);
+                return 0;
+            }
+
+            foreach (var msg in batch)
+            {
+                msg.MarkPublishing();
+            }
+            await db.SaveChangesAsync(ct);
+            await tx.CommitAsync(ct);
+            claimedIds = batch.Select(b => b.Id).ToList();
         }
 
-        foreach (var msg in batch)
+        // 2) Publish + finalise the state. Separate scope/context so the
+        // earlier transaction (and its row locks) are fully released while
+        // we make the network call. Other workers won't pick these rows up
+        // because their state is already Publishing.
+        int processed = 0;
+        await using (var scope = _services.CreateAsyncScope())
         {
-            msg.MarkPublishing();
-        }
-        await db.SaveChangesAsync(ct);
+            var db = scope.ServiceProvider.GetRequiredService<TContext>();
+            var rows = await db.Set<OutboxMessage>()
+                .Where(m => claimedIds.Contains(m.Id))
+                .ToListAsync(ct);
 
-        foreach (var msg in batch)
-        {
-            try
+            foreach (var msg in rows)
             {
-                await _publisher.PublishAsync(msg, ct);
-                msg.MarkPublished();
+                try
+                {
+                    await _publisher.PublishAsync(msg, ct);
+                    msg.MarkPublished();
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    var delay = OutboxBackoff.NextDelayFor(msg.AttemptCount);
+                    msg.MarkFailed(ex.Message, delay);
+                    _logger.LogWarning(ex,
+                        "Outbox publish failed for {EventType} (attempt {Attempt})",
+                        msg.EventType, msg.AttemptCount);
+                }
+                processed++;
             }
-            catch (OperationCanceledException)
-            {
-                throw;
-            }
-            catch (Exception ex)
-            {
-                var delay = OutboxBackoff.NextDelayFor(msg.AttemptCount);
-                msg.MarkFailed(ex.Message, delay);
-                _logger.LogWarning(ex,
-                    "Outbox publish failed for {EventType} (attempt {Attempt})",
-                    msg.EventType, msg.AttemptCount);
-            }
+
+            await db.SaveChangesAsync(ct);
         }
 
-        await db.SaveChangesAsync(ct);
-        return batch.Count;
+        return processed;
     }
 
     private async Task SweepStuckPublishingAsync(CancellationToken ct)
@@ -139,6 +183,7 @@ public sealed class OutboxBackgroundService<TContext> : BackgroundService
             msg.ResetPublishingToPending();
         }
         await db.SaveChangesAsync(ct);
-        _logger.LogInformation("Recovered {Count} stuck outbox row(s) from Publishing → Pending on startup", stuck.Count);
+        _logger.LogInformation(
+            "Recovered {Count} stuck outbox row(s) from Publishing → Pending", stuck.Count);
     }
 }

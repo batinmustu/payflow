@@ -19,6 +19,8 @@ public sealed class Refund : AggregateRoot<Guid>
     public string RequestedBy { get; private set; }
     public string? FailureReason { get; private set; }
     public string FinalProviderCode { get; private set; }
+    /// <summary>Provider's reference for the refund operation itself (e.g. <c>rf_abc</c>), set when the saga reports Completed.</summary>
+    public string? ProviderRefundReference { get; private set; }
     public DateTimeOffset RequestedAt { get; private set; }
     public DateTimeOffset? CompletedAt { get; private set; }
     public DateTimeOffset? FailedAt { get; private set; }
@@ -130,6 +132,7 @@ public sealed class Refund : AggregateRoot<Guid>
         ArgumentException.ThrowIfNullOrWhiteSpace(providerReference);
 
         State = RefundState.Completed;
+        ProviderRefundReference = providerReference.Trim();
         CompletedAt = DateTimeOffset.UtcNow;
     }
 

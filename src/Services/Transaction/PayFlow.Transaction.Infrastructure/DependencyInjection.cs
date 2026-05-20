@@ -48,6 +48,7 @@ public static class DependencyInjection
         services.Configure<PaymentServiceOptions>(configuration.GetSection(PaymentServiceOptions.SectionName));
         services.AddHttpContextAccessor();
         services.AddTransient<BearerTokenForwardingHandler>();
+        services.AddTransient<RetryingHttpMessageHandler>();
         services.AddHttpClient<IPaymentClient, HttpPaymentClient>((sp, client) =>
         {
             var opts = sp.GetRequiredService<IOptions<PaymentServiceOptions>>().Value;
@@ -56,7 +57,10 @@ public static class DependencyInjection
         })
         // Forward the inbound user's Bearer token so Payment can verify
         // the tenant scope on the call.
-        .AddHttpMessageHandler<BearerTokenForwardingHandler>();
+        .AddHttpMessageHandler<BearerTokenForwardingHandler>()
+        // Transient-failure retry sits closest to the wire so individual
+        // 5xx / socket blips self-heal before bubbling up as a charge fail.
+        .AddHttpMessageHandler<RetryingHttpMessageHandler>();
 
         // Outbox transport: Kafka. (LoggingOutboxPublisher kept in the assembly
         // for tests + a future dev override; not registered by default.)

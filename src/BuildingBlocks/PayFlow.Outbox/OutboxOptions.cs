@@ -13,6 +13,12 @@ public sealed class OutboxOptions
     /// <summary>How long a Publishing row may sit before the recovery sweep resets it. Default 60s.</summary>
     public int StuckPublishingThresholdSeconds { get; set; } = 60;
 
+    /// <summary>
+    /// How often the stuck-Publishing sweeper runs while the worker is alive
+    /// (the same query also runs once on startup). Default 60s.
+    /// </summary>
+    public int StuckSweepIntervalSeconds { get; set; } = 60;
+
     /// <summary>Max attempts before a row goes terminal (alerted; not retried automatically).</summary>
     public int MaxAttempts { get; set; } = 7;
 }

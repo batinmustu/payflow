@@ -114,24 +114,34 @@ public sealed class RefundRequestedConsumer
             {
                 saga.MarkCompleted(response.ProviderReference ?? "unknown");
             }
+            else if (string.Equals(response.Status, "ProviderUnavailable", StringComparison.OrdinalIgnoreCase))
+            {
+                // Transient — saga stays in ProviderCalled (or goes terminal
+                // if we've spent the retry budget). A recovery worker / next
+                // delivery will try again.
+                saga.RecordTransientFailure(response.DeclineCode ?? "PROVIDER_UNAVAILABLE");
+            }
             else
             {
-                // Declined or ProviderUnavailable — both terminal in v1.
-                // ProviderUnavailable will become "stay in ProviderCalled,
-                // retry with backoff" when the saga grows a retry budget.
+                // Deterministic decline (TRANSACTION_TOO_OLD, INSUFFICIENT_BALANCE…).
+                // Terminal — retrying wouldn't change the answer.
                 saga.MarkFailed(response.DeclineCode ?? response.Status);
             }
         }
         catch (PaymentClientException ex)
         {
-            _logger.LogError(ex,
-                "Payment refund call threw for saga {SagaId}; marking failed.",
-                saga.Id);
-            saga.MarkFailed("TRANSPORT_ERROR");
+            // Transport-level failure (timeout, DNS, 5xx after the retry
+            // handler exhausts its budget). Treat as transient so the
+            // saga gets another shot.
+            _logger.LogWarning(ex,
+                "Payment refund call threw for saga {SagaId} (attempt {Attempt}); transient.",
+                saga.Id, saga.AttemptCount);
+            saga.RecordTransientFailure("TRANSPORT_ERROR");
         }
 
         await _uow.SaveChangesAsync(ct);
         // SaveChanges #3: terminal state + payflow.refund.completed.v1 or
-        // payflow.refund.failed.v1 in outbox.
+        // payflow.refund.failed.v1 in outbox — or just the updated
+        // failure_reason when the saga is still in transient state.
     }
 }

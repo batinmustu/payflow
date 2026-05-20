@@ -114,6 +114,44 @@ public sealed class RefundSaga : AggregateRoot<Guid>
             FailureReason: failureReason));
     }
 
+    /// <summary>
+    /// Max number of provider calls we'll make before giving up — including
+    /// the first attempt. Aligns with docs/flows/refund-saga.md retry
+    /// budget table.
+    /// </summary>
+    public const int MaxAttempts = 6;
+
+    /// <summary>
+    /// Records a transient provider failure (timeout, 5xx, ProviderUnavailable).
+    /// Keeps the saga in <c>ProviderCalled</c> so a recovery worker can try
+    /// again, until the attempt budget is exhausted — at which point the saga
+    /// becomes terminal Failed and emits the integration event.
+    /// </summary>
+    public void RecordTransientFailure(string failureReason)
+    {
+        EnsureState(RefundSagaState.ProviderCalled);
+        ArgumentException.ThrowIfNullOrWhiteSpace(failureReason);
+
+        FailureReason = failureReason;
+
+        if (AttemptCount >= MaxAttempts)
+        {
+            // Budget exhausted — promote to terminal Failed.
+            State = RefundSagaState.Failed;
+            FailedAt = DateTimeOffset.UtcNow;
+
+            Raise(new RefundFailedDomainEvent(
+                SagaId: Id,
+                RefundId: RefundId,
+                TransactionId: TransactionId,
+                TenantId: TenantId,
+                FailureReason: failureReason));
+        }
+        // Otherwise stay in ProviderCalled with attempt_count incremented by
+        // MarkProviderCalled before the call; a recovery worker (or the next
+        // Kafka redelivery) picks the saga up and tries the provider again.
+    }
+
     private void EnsureState(params RefundSagaState[] expected)
     {
         if (!expected.Contains(State))

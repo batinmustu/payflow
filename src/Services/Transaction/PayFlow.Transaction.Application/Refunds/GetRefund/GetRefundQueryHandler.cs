@@ -31,6 +31,7 @@ internal sealed class GetRefundQueryHandler
             Currency: refund.Currency,
             RequestedBy: refund.RequestedBy,
             FinalProviderCode: refund.FinalProviderCode,
+            ProviderRefundReference: refund.ProviderRefundReference,
             FailureReason: refund.FailureReason,
             RequestedAt: refund.RequestedAt,
             CompletedAt: refund.CompletedAt,

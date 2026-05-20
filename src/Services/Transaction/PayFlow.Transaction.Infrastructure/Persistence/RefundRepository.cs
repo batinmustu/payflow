@@ -15,11 +15,13 @@ internal sealed class RefundRepository : IRefundRepository
 
     public async Task<long> SumOutstandingAmountAsync(Guid tenantId, Guid transactionId, CancellationToken ct)
     {
+        // Project to `long?` so EF doesn't run into "Sequence contains no
+        // elements"-style edge cases on empty result sets; coalesce here.
         return await _db.Set<Refund>()
             .Where(r => r.TenantId == tenantId
                      && r.TransactionId == transactionId
                      && r.State != RefundState.Failed)
-            .SumAsync(r => r.AmountMinor, ct);
+            .SumAsync(r => (long?)r.AmountMinor, ct) ?? 0L;
     }
 
     public async Task AddAsync(Refund refund, CancellationToken ct)
