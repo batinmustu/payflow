@@ -98,9 +98,19 @@ internal static class TransactionEndpoints
                 extensions: new Dictionary<string, object?> { ["code"] = "AUTH_TENANT_MISSING" });
         }
 
-        var requestedBy = !string.IsNullOrWhiteSpace(request.RequestedBy)
-            ? request.RequestedBy
-            : user.FindFirstValue(ClaimTypes.NameIdentifier) ?? user.FindFirstValue("sub") ?? "unknown";
+        // RequestedBy comes only from the JWT — never from the body — so a
+        // caller can't smuggle PII (e.g. someone else's email) into the
+        // refund row and the outboxed Kafka event.
+        var requestedBy = user.FindFirstValue(ClaimTypes.NameIdentifier)
+            ?? user.FindFirstValue("sub");
+        if (string.IsNullOrWhiteSpace(requestedBy))
+        {
+            return Results.Problem(
+                statusCode: StatusCodes.Status401Unauthorized,
+                title: "No subject",
+                detail: "JWT did not carry a 'sub' claim. Re-authenticate.",
+                extensions: new Dictionary<string, object?> { ["code"] = "AUTH_SUBJECT_MISSING" });
+        }
 
         var command = new RequestRefundCommand(
             TenantId: tenantContext.TenantId!.Value,

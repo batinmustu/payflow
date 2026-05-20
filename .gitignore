@@ -488,3 +488,6 @@ planning/
 tasks/
 lessons.md
 appsettings.Local.json
+appsettings.Production.json
+appsettings.Staging.json
+appsettings.*.local.json

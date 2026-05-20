@@ -9,6 +9,7 @@
     <ProjectReference Include="..\PayFlow.Transaction.Application\PayFlow.Transaction.Application.csproj" />
     <ProjectReference Include="..\..\..\BuildingBlocks\PayFlow.Outbox\PayFlow.Outbox.csproj" />
     <ProjectReference Include="..\..\..\BuildingBlocks\PayFlow.EventBus.Kafka\PayFlow.EventBus.Kafka.csproj" />
+    <ProjectReference Include="..\..\..\BuildingBlocks\PayFlow.Multitenancy\PayFlow.Multitenancy.csproj" />
   </ItemGroup>
 
   <ItemGroup>

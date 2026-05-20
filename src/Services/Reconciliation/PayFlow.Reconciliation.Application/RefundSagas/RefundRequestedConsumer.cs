@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using PayFlow.EventBus.Kafka.Consuming;
 using PayFlow.Reconciliation.Application.Abstractions;
 using PayFlow.Reconciliation.Domain.RefundSagas;
+using PayFlow.SharedKernel;
 
 namespace PayFlow.Reconciliation.Application.RefundSagas;
 
@@ -69,12 +70,32 @@ public sealed class RefundRequestedConsumer
         }
         var saga = startResult.Value;
         await _sagas.AddAsync(saga, ct);
-        await _uow.SaveChangesAsync(ct);
-        // SaveChanges #1: Started row in DB + payflow.refund.processing.v1
-        // in outbox. Transaction's consumer (M4.E) will see the latter and
-        // flip its Refund record into Processing.
+        try
+        {
+            await _uow.SaveChangesAsync(ct);
+            // SaveChanges #1: Started row in DB + payflow.refund.processing.v1
+            // in outbox. Transaction's consumer (M4.E) will see the latter and
+            // flip its Refund record into Processing.
+        }
+        catch (UniqueConstraintViolationException ex) when (
+            ex.ConstraintName == "ux_refund_sagas_tenant_refund")
+        {
+            // Race with another consumer instance (or a Kafka redelivery
+            // between the FindByRefundIdAsync read and our insert). The
+            // other worker already started the saga — idempotent skip.
+            _logger.LogInformation(
+                "Saga for refund {RefundId} already exists (unique violation race); idempotent skip.",
+                payload.RefundId);
+            return;
+        }
 
         saga.MarkProviderCalled();
+        await _uow.SaveChangesAsync(ct);
+        // SaveChanges #2: ProviderCalled + AttemptCount++ in DB before the
+        // HTTP call goes out. If the process dies mid-flight the row tells
+        // us the provider was contacted (manual recovery can decide whether
+        // to confirm, void, or retry); without this step a crashed saga
+        // looks identical to one that never made the call.
 
         try
         {
@@ -110,7 +131,7 @@ public sealed class RefundRequestedConsumer
         }
 
         await _uow.SaveChangesAsync(ct);
-        // SaveChanges #2: terminal state + payflow.refund.completed.v1 or
+        // SaveChanges #3: terminal state + payflow.refund.completed.v1 or
         // payflow.refund.failed.v1 in outbox.
     }
 }

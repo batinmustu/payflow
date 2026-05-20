@@ -198,6 +198,9 @@ public class CreateTransactionCommandHandlerTests
             SaveCount++;
             return Task.FromResult(1);
         }
+
+        public Task<T> ExecuteSerialisedAsync<T>(Guid lockKey, Func<CancellationToken, Task<T>> work, CancellationToken ct)
+            => work(ct);
     }
 
     private sealed class FakePaymentClient : IPaymentClient

@@ -1,3 +1,4 @@
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using PayFlow.Reconciliation.Application.Abstractions;
@@ -9,17 +10,32 @@ internal sealed class HttpPaymentRefundClient : IPaymentRefundClient
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
     private readonly HttpClient _http;
+    private readonly IServiceTokenIssuer _tokens;
 
-    public HttpPaymentRefundClient(HttpClient http) => _http = http;
+    public HttpPaymentRefundClient(HttpClient http, IServiceTokenIssuer tokens)
+    {
+        _http = http;
+        _tokens = tokens;
+    }
 
     public async Task<PaymentRefundResponse> RefundAsync(PaymentRefundRequest request, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(request);
 
+        using var httpRequest = new HttpRequestMessage(HttpMethod.Post, "api/payments/refund")
+        {
+            Content = JsonContent.Create(request, options: Json),
+        };
+        // Saga work is event-driven — there is no inbound JWT to forward.
+        // We mint a short-lived service token scoped to the saga's tenant
+        // so Payment's multitenancy middleware sees the right `tid`.
+        var token = _tokens.IssueForTenant(request.TenantId);
+        httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
         HttpResponseMessage response;
         try
         {
-            response = await _http.PostAsJsonAsync("api/payments/refund", request, Json, ct);
+            response = await _http.SendAsync(httpRequest, ct);
         }
         catch (HttpRequestException ex)
         {

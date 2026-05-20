@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using PayFlow.Reporting.Application.Abstractions;
 using PayFlow.Reporting.Domain.Idempotency;
 using PayFlow.Reporting.Domain.Projections;
+using PayFlow.SharedKernel;
 
 namespace PayFlow.Reporting.Application.Projections;
 
@@ -46,6 +47,40 @@ public sealed class SummaryProjectionService
             _logger.LogInformation(
                 "Skipping {EventType} message {MessageId} — already projected.",
                 eventType, messageId);
+            return;
+        }
+
+        try
+        {
+            await ApplyOnceAsync(messageId, eventType, tenantId, occurredAt, currency, apply, ct);
+        }
+        catch (UniqueConstraintViolationException ex) when (
+            ex.ConstraintName is "ux_daily_summary_tenant_date_currency" or "PK_processed_events")
+        {
+            // Two consumers raced on the same bucket (or the same message
+            // arrived twice while neither attempt had written processed_events
+            // yet). Reload the existing row and replay our delta on top of
+            // it — the Kafka retry loop relies on this being safe.
+            _logger.LogInformation(
+                "Projection race on {EventType} {MessageId} ({Constraint}); replaying onto existing row.",
+                eventType, messageId, ex.ConstraintName);
+            await ApplyOnceAsync(messageId, eventType, tenantId, occurredAt, currency, apply, ct);
+        }
+    }
+
+    private async Task ApplyOnceAsync(
+        Guid messageId,
+        string eventType,
+        Guid tenantId,
+        DateTimeOffset occurredAt,
+        string currency,
+        Action<DailyTransactionSummary> apply,
+        CancellationToken ct)
+    {
+        // Re-check dedup inside the retry path — the conflict may have been
+        // a duplicate message_id that just landed in processed_events.
+        if (await _processed.WasProcessedAsync(messageId, ct))
+        {
             return;
         }
 

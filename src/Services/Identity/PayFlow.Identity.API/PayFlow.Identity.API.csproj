@@ -8,10 +8,7 @@
     <ProjectReference Include="..\PayFlow.Identity.Application\PayFlow.Identity.Application.csproj" />
     <ProjectReference Include="..\PayFlow.Identity.Infrastructure\PayFlow.Identity.Infrastructure.csproj" />
     <ProjectReference Include="..\..\..\BuildingBlocks\PayFlow.Observability\PayFlow.Observability.csproj" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
+    <ProjectReference Include="..\..\..\BuildingBlocks\PayFlow.Multitenancy\PayFlow.Multitenancy.csproj" />
   </ItemGroup>
 
 </Project>

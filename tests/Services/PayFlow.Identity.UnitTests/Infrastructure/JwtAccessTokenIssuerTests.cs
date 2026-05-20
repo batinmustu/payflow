@@ -1,4 +1,5 @@
 using System.Text;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Tokens;
@@ -11,6 +12,8 @@ public class JwtAccessTokenIssuerTests
 {
     private const string SigningKey = "test-only-signing-key-min-32-bytes-aaaa";
 
+    private static FakeHostEnvironment DevEnv() => new("Development");
+
     private static JwtAccessTokenIssuer NewIssuer(int lifetimeMinutes = 15) =>
         new(Options.Create(new JwtSettings
         {
@@ -18,7 +21,16 @@ public class JwtAccessTokenIssuerTests
             Audience = "PayFlow.Services.Test",
             SigningKey = SigningKey,
             AccessTokenLifetimeMinutes = lifetimeMinutes,
-        }));
+        }), DevEnv());
+
+    private sealed class FakeHostEnvironment : IHostEnvironment
+    {
+        public FakeHostEnvironment(string name) => EnvironmentName = name;
+        public string EnvironmentName { get; set; }
+        public string ApplicationName { get; set; } = "PayFlow.Identity.Tests";
+        public string ContentRootPath { get; set; } = AppContext.BaseDirectory;
+        public Microsoft.Extensions.FileProviders.IFileProvider ContentRootFileProvider { get; set; } = null!;
+    }
 
     private static User AUser(string email = "user@example.com", string display = "Display")
     {
@@ -103,7 +115,7 @@ public class JwtAccessTokenIssuerTests
     [Fact]
     public void Constructor_throws_when_signing_key_missing()
     {
-        var act = () => new JwtAccessTokenIssuer(Options.Create(new JwtSettings { SigningKey = "" }));
+        var act = () => new JwtAccessTokenIssuer(Options.Create(new JwtSettings { SigningKey = "" }), DevEnv());
 
         act.Should().Throw<InvalidOperationException>()
             .WithMessage("*SigningKey*not configured*");
@@ -112,10 +124,25 @@ public class JwtAccessTokenIssuerTests
     [Fact]
     public void Constructor_throws_when_signing_key_too_short_for_hs256()
     {
-        var act = () => new JwtAccessTokenIssuer(Options.Create(new JwtSettings { SigningKey = "tooshort" }));
+        var act = () => new JwtAccessTokenIssuer(Options.Create(new JwtSettings { SigningKey = "tooshort" }), DevEnv());
 
         act.Should().Throw<InvalidOperationException>()
             .WithMessage("*256 bits*");
+    }
+
+    [Fact]
+    public void Constructor_throws_when_dev_key_used_in_production()
+    {
+        var prod = new FakeHostEnvironment("Production");
+        var act = () => new JwtAccessTokenIssuer(Options.Create(new JwtSettings
+        {
+            Issuer = "PayFlow.Identity",
+            Audience = "PayFlow.Services",
+            SigningKey = PayFlow.Multitenancy.JwtSigningKeyGuard.DevOnlySigningKey,
+        }), prod);
+
+        act.Should().Throw<InvalidOperationException>()
+            .WithMessage("*dev*production*");
     }
 
     [Fact]

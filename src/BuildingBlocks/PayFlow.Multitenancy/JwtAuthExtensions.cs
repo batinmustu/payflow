@@ -1,16 +1,20 @@
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.IdentityModel.Tokens;
 
-namespace PayFlow.Transaction.API.Auth;
+namespace PayFlow.Multitenancy;
 
 /// <summary>
-/// Validates JWTs that Identity issued. Reads from the same Identity:Jwt
-/// configuration section so the validation parameters stay in sync with
-/// the issuer. Will move into a shared building block when a third
-/// service needs the same wiring.
+/// One call wires up JwtBearer validation against the shared
+/// <c>Identity:Jwt</c> section. Used by every PayFlow API except Identity
+/// itself (Identity is the issuer, not a validator). Refuses to start
+/// when the production environment is configured with the committed dev
+/// signing key.
 /// </summary>
-internal static class JwtAuthExtensions
+public static class JwtAuthExtensions
 {
     public static IServiceCollection AddPayFlowJwtAuthentication(this IServiceCollection services)
     {
@@ -18,7 +22,7 @@ internal static class JwtAuthExtensions
 
         services
             .AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)
-            .Configure<IConfiguration>((options, configuration) =>
+            .Configure<IConfiguration, IHostEnvironment>((options, configuration, env) =>
             {
                 var jwt = configuration.GetSection("Identity:Jwt");
                 var issuer = jwt["Issuer"]
@@ -27,6 +31,8 @@ internal static class JwtAuthExtensions
                     ?? throw new InvalidOperationException("Identity:Jwt:Audience is not configured.");
                 var signingKey = jwt["SigningKey"]
                     ?? throw new InvalidOperationException("Identity:Jwt:SigningKey is not configured.");
+
+                JwtSigningKeyGuard.ThrowIfDevKeyInProduction(signingKey, env);
 
                 options.MapInboundClaims = false;
                 options.TokenValidationParameters = new TokenValidationParameters

@@ -1,5 +1,6 @@
 using FluentValidation;
 using MediatR;
+using PayFlow.Multitenancy;
 using PayFlow.Payment.Application.Payments.Charge;
 using PayFlow.Payment.Application.Payments.Refund;
 
@@ -9,7 +10,9 @@ internal static class PaymentEndpoints
 {
     public static IEndpointRouteBuilder MapPaymentEndpoints(this IEndpointRouteBuilder routes)
     {
-        var group = routes.MapGroup("/api/payments").WithTags("Payments");
+        var group = routes.MapGroup("/api/payments")
+            .WithTags("Payments")
+            .RequireAuthorization();
 
         group.MapPost("/charge", ChargeAsync)
             .WithName("Charge")
@@ -26,14 +29,24 @@ internal static class PaymentEndpoints
 
     private static async Task<IResult> ChargeAsync(
         ChargeRequest request,
+        ITenantContext tenantContext,
         IValidator<ChargeCommand> validator,
         IMediator mediator,
         CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(request);
 
+        if (!tenantContext.IsResolved)
+        {
+            return Results.Problem(
+                statusCode: StatusCodes.Status401Unauthorized,
+                title: "No tenant context",
+                detail: "JWT did not carry a 'tid' claim. Re-authenticate.",
+                extensions: new Dictionary<string, object?> { ["code"] = "AUTH_TENANT_MISSING" });
+        }
+
         var command = new ChargeCommand(
-            TenantId: request.TenantId,
+            TenantId: tenantContext.TenantId!.Value,
             TransactionId: request.TransactionId,
             ProviderCode: request.ProviderCode,
             AmountMinor: request.AmountMinor,
@@ -58,14 +71,24 @@ internal static class PaymentEndpoints
 
     private static async Task<IResult> RefundAsync(
         RefundRequest request,
+        ITenantContext tenantContext,
         IValidator<RefundCommand> validator,
         IMediator mediator,
         CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(request);
 
+        if (!tenantContext.IsResolved)
+        {
+            return Results.Problem(
+                statusCode: StatusCodes.Status401Unauthorized,
+                title: "No tenant context",
+                detail: "JWT did not carry a 'tid' claim. Re-authenticate.",
+                extensions: new Dictionary<string, object?> { ["code"] = "AUTH_TENANT_MISSING" });
+        }
+
         var command = new RefundCommand(
-            TenantId: request.TenantId,
+            TenantId: tenantContext.TenantId!.Value,
             TransactionId: request.TransactionId,
             ProviderCode: request.ProviderCode,
             ProviderReference: request.ProviderReference,

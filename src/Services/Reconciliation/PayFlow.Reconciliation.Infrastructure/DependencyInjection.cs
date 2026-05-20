@@ -39,6 +39,7 @@ public static class DependencyInjection
         services.AddScoped<IRefundSagaRepository, RefundSagaRepository>();
 
         services.Configure<PaymentServiceOptions>(configuration.GetSection(PaymentServiceOptions.SectionName));
+        services.AddSingleton<IServiceTokenIssuer, ServiceTokenIssuer>();
         services.AddHttpClient<IPaymentRefundClient, HttpPaymentRefundClient>((sp, client) =>
         {
             var opts = sp.GetRequiredService<IOptions<PaymentServiceOptions>>().Value;

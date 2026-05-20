@@ -1,9 +1,9 @@
 using Microsoft.EntityFrameworkCore;
-using PayFlow.Identity.API.Auth;
 using PayFlow.Identity.API.Endpoints;
 using PayFlow.Identity.Application;
 using PayFlow.Identity.Infrastructure;
 using PayFlow.Identity.Infrastructure.Persistence;
+using PayFlow.Multitenancy;
 using PayFlow.Observability;
 
 const string ServiceName = "payflow-identity";

@@ -1,10 +1,12 @@
 using System.Security.Claims;
 using System.Text;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Tokens;
 using PayFlow.Identity.Application.Abstractions;
 using PayFlow.Identity.Domain.Users;
+using PayFlow.Multitenancy;
 
 namespace PayFlow.Identity.Infrastructure.Security;
 
@@ -12,9 +14,10 @@ internal sealed class JwtAccessTokenIssuer : IAccessTokenIssuer
 {
     private readonly JwtSettings _settings;
 
-    public JwtAccessTokenIssuer(IOptions<JwtSettings> settings)
+    public JwtAccessTokenIssuer(IOptions<JwtSettings> settings, IHostEnvironment env)
     {
         ArgumentNullException.ThrowIfNull(settings);
+        ArgumentNullException.ThrowIfNull(env);
         _settings = settings.Value;
 
         if (string.IsNullOrWhiteSpace(_settings.SigningKey))
@@ -28,6 +31,8 @@ internal sealed class JwtAccessTokenIssuer : IAccessTokenIssuer
             throw new InvalidOperationException(
                 $"{JwtSettings.SectionName}:SigningKey must be at least 256 bits (32 bytes) for HS256.");
         }
+
+        JwtSigningKeyGuard.ThrowIfDevKeyInProduction(_settings.SigningKey, env);
     }
 
     public AccessToken Issue(User user)

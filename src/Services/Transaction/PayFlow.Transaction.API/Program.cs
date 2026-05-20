@@ -2,7 +2,6 @@ using Microsoft.EntityFrameworkCore;
 using PayFlow.EventBus.Kafka;
 using PayFlow.Multitenancy;
 using PayFlow.Observability;
-using PayFlow.Transaction.API.Auth;
 using PayFlow.Transaction.API.Endpoints;
 using PayFlow.Transaction.API.Idempotency;
 using PayFlow.Transaction.Application;

@@ -3,6 +3,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using PayFlow.EventBus.Kafka;
+using PayFlow.Multitenancy;
 using PayFlow.Outbox;
 using PayFlow.Transaction.Application.Abstractions;
 using PayFlow.Transaction.Infrastructure.Outbox;
@@ -46,12 +47,17 @@ public static class DependencyInjection
         services.AddSingleton<IRoutingPolicy, StaticRoutingPolicy>();
 
         services.Configure<PaymentServiceOptions>(configuration.GetSection(PaymentServiceOptions.SectionName));
+        services.AddHttpContextAccessor();
+        services.AddTransient<BearerTokenForwardingHandler>();
         services.AddHttpClient<IPaymentClient, HttpPaymentClient>((sp, client) =>
         {
             var opts = sp.GetRequiredService<IOptions<PaymentServiceOptions>>().Value;
             client.BaseAddress = new Uri(opts.BaseUrl.TrimEnd('/') + "/");
             client.Timeout = TimeSpan.FromSeconds(opts.TimeoutSeconds);
-        });
+        })
+        // Forward the inbound user's Bearer token so Payment can verify
+        // the tenant scope on the call.
+        .AddHttpMessageHandler<BearerTokenForwardingHandler>();
 
         // Outbox transport: Kafka. (LoggingOutboxPublisher kept in the assembly
         // for tests + a future dev override; not registered by default.)

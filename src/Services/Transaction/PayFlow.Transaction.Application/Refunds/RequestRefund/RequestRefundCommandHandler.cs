@@ -23,12 +23,27 @@ internal sealed class RequestRefundCommandHandler
         _uow = uow;
     }
 
-    public async Task<Result<RequestRefundResponse>> Handle(
+    public Task<Result<RequestRefundResponse>> Handle(
         RequestRefundCommand command,
         CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(command);
 
+        // Outstanding-balance check + insert is a TOCTOU race: without the
+        // advisory lock two concurrent requests at the remaining balance
+        // would both read outstanding = 0 and both insert, breezing past
+        // the captured-amount invariant. Serialising on transaction id
+        // closes that window.
+        return _uow.ExecuteSerialisedAsync(
+            lockKey: command.TransactionId,
+            work: innerCt => HandleSerialisedAsync(command, innerCt),
+            ct: ct);
+    }
+
+    private async Task<Result<RequestRefundResponse>> HandleSerialisedAsync(
+        RequestRefundCommand command,
+        CancellationToken ct)
+    {
         var transaction = await _transactions.GetAsync(command.TenantId, command.TransactionId, ct);
         if (transaction is null)
         {

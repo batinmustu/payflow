@@ -13,9 +13,13 @@ namespace PayFlow.EventBus.Kafka.Consuming;
 /// dispatches each message into a fresh DI scope.
 ///
 /// Offsets are stored + committed only after a handler returns successfully.
-/// If a handler throws we log + advance anyway — the partition is not blocked.
-/// A proper dead-letter shovel will land alongside the first retryable saga
-/// step that needs it (see docs/flows/refund-saga.md).
+/// On handler exceptions the loop retries the same offset up to
+/// <see cref="KafkaConsumerOptions.MaxHandlerRetries"/> times (with a
+/// backoff) before logging an error and advancing — so a transient
+/// DB/HTTP blip self-heals, while a true poison pill doesn't park the
+/// partition forever. A proper dead-letter shovel will land alongside
+/// the first retryable saga step that needs it (see
+/// docs/flows/refund-saga.md).
 /// </summary>
 public sealed class KafkaConsumerBackgroundService : BackgroundService
 {
@@ -24,6 +28,10 @@ public sealed class KafkaConsumerBackgroundService : BackgroundService
     private readonly KafkaOptions _kafka;
     private readonly KafkaConsumerOptions _consumerOptions;
     private readonly ILogger<KafkaConsumerBackgroundService> _logger;
+
+    // Tracks how many times the same offset has thrown in a row. Lives in
+    // memory only — on restart we replay (idempotent consumers handle it).
+    private readonly Dictionary<TopicPartitionOffset, int> _retryCounts = new();
 
     public KafkaConsumerBackgroundService(
         IServiceProvider services,
@@ -90,8 +98,24 @@ public sealed class KafkaConsumerBackgroundService : BackgroundService
 
                 if (result is null || result.IsPartitionEOF) continue;
 
-                await DispatchAsync(result, stoppingToken);
+                var outcome = await DispatchAsync(result, stoppingToken);
+                if (outcome == DispatchOutcome.RetrySameOffset)
+                {
+                    // Don't advance — Confluent gives us the same record on
+                    // the next Consume() call by default (offsets only move
+                    // when we StoreOffset/Commit).
+                    try
+                    {
+                        await Task.Delay(
+                            TimeSpan.FromMilliseconds(_consumerOptions.RetryBackoffMilliseconds),
+                            stoppingToken);
+                    }
+                    catch (OperationCanceledException) { break; }
+                    continue;
+                }
+
                 AdvanceOffset(consumer, result);
+                _retryCounts.Remove(result.TopicPartitionOffset);
             }
         }
         finally
@@ -100,7 +124,9 @@ public sealed class KafkaConsumerBackgroundService : BackgroundService
         }
     }
 
-    private async Task DispatchAsync(
+    private enum DispatchOutcome { Advance, RetrySameOffset }
+
+    private async Task<DispatchOutcome> DispatchAsync(
         ConsumeResult<string, byte[]> result,
         CancellationToken ct)
     {
@@ -111,7 +137,7 @@ public sealed class KafkaConsumerBackgroundService : BackgroundService
             _logger.LogWarning(
                 "Skipping message on {Topic} p={Partition} o={Offset}: missing event_type header.",
                 result.Topic, result.Partition.Value, result.Offset.Value);
-            return;
+            return DispatchOutcome.Advance;
         }
 
         var registration = _registry.TryGet(eventType);
@@ -120,7 +146,7 @@ public sealed class KafkaConsumerBackgroundService : BackgroundService
             _logger.LogWarning(
                 "No handler registered for event_type {EventType}; skipping ({Topic} o={Offset}).",
                 eventType, result.Topic, result.Offset.Value);
-            return;
+            return DispatchOutcome.Advance;
         }
 
         object envelope;
@@ -131,24 +157,37 @@ public sealed class KafkaConsumerBackgroundService : BackgroundService
         }
         catch (Exception ex) when (ex is JsonException or InvalidOperationException)
         {
+            // Malformed payload — retrying won't help, advance past it.
             _logger.LogError(ex,
                 "Failed to build envelope for {EventType} ({Topic} o={Offset}); skipping.",
                 eventType, result.Topic, result.Offset.Value);
-            return;
+            return DispatchOutcome.Advance;
         }
 
         using var scope = _services.CreateScope();
         try
         {
-            // The lambda inside EventRegistration knows TPayload at compile time,
-            // so it can do the downcast and resolve the concrete handler.
             await registration.DispatchAsync(scope.ServiceProvider, envelope, ct);
+            return DispatchOutcome.Advance;
         }
         catch (Exception ex)
         {
+            var attempts = _retryCounts.TryGetValue(result.TopicPartitionOffset, out var n) ? n + 1 : 1;
+            _retryCounts[result.TopicPartitionOffset] = attempts;
+
+            if (attempts < _consumerOptions.MaxHandlerRetries)
+            {
+                _logger.LogWarning(ex,
+                    "Handler {Handler} threw on {EventType} ({Topic} o={Offset}); retry {Attempt}/{Max}.",
+                    registration.HandlerType.Name, eventType,
+                    result.Topic, result.Offset.Value, attempts, _consumerOptions.MaxHandlerRetries);
+                return DispatchOutcome.RetrySameOffset;
+            }
+
             _logger.LogError(ex,
-                "Handler {Handler} threw on {EventType} ({Topic} o={Offset}); advancing offset anyway.",
-                registration.HandlerType.Name, eventType, result.Topic, result.Offset.Value);
+                "Handler {Handler} threw {Attempt} times on {EventType} ({Topic} o={Offset}); giving up and advancing.",
+                registration.HandlerType.Name, attempts, eventType, result.Topic, result.Offset.Value);
+            return DispatchOutcome.Advance;
         }
     }
 
