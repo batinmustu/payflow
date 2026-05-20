@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\PayFlow.Reporting.Domain\PayFlow.Reporting.Domain.csproj" />
+    <ProjectReference Include="..\..\..\BuildingBlocks\PayFlow.EventBus.Kafka\PayFlow.EventBus.Kafka.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MediatR" />
+    <PackageReference Include="FluentValidation" />
+    <PackageReference Include="FluentValidation.DependencyInjectionExtensions" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="PayFlow.Reporting.UnitTests" />
+  </ItemGroup>
+
+</Project>
