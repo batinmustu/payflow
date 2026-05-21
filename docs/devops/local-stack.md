@@ -77,7 +77,7 @@ On first run, `docker compose up` triggers:
 1. Each service's startup migrations apply. Idempotent — re-runs are no-ops.
 2. Kafka topics get created on first publish.
 
-There is **no auto-seeding today**: the schemas come up empty. The first thing you'll do after bring-up is register a tenant + admin user via the Identity API (or replay the **PayFlow** folder in `planning/PayFlow.postman_collection.json`, which walks through register-tenant → login → create-transaction → request-refund → list-reports end-to-end).
+There is **no auto-seeding today**: the schemas come up empty. The first thing you'll do after bring-up is register a tenant + admin user via the Identity API (or replay the **PayFlow** folder in `docs/api/PayFlow.postman_collection.json`, which walks through register-tenant → login → create-transaction → request-refund → list-reports end-to-end).
 
 ## Bootstrapping a tenant
 
@@ -99,7 +99,7 @@ curl -X POST http://localhost:5050/api/auth/login \
   -d '{"tenantSlug":"demo","email":"demo@payflow.local","password":"demo"}'
 ```
 
-The Postman collection at `planning/PayFlow.postman_collection.json` does the same thing and stores the JWT in a collection variable so subsequent requests in the folder pick it up automatically — start there if you want to click through.
+The Postman collection at `docs/api/PayFlow.postman_collection.json` does the same thing and stores the JWT in a collection variable so subsequent requests in the folder pick it up automatically — start there if you want to click through.
 
 ## Running services on the host (faster iteration)
 

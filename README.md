@@ -81,7 +81,7 @@ dotnet run --project src/Services/Webhooks/PayFlow.Webhooks.API             --ur
 dotnet run --project src/ApiGateway/PayFlow.Gateway                         --urls=http://127.0.0.1:5050
 ```
 
-Each service applies its EF Core migrations on startup in Development. The Postman collection at `planning/PayFlow.postman_collection.json` exercises every endpoint; replay the requests in the order shown in the folders. Full local-stack notes (ports, healthcheck commands, observability sinks) live in [docs/devops/local-stack.md](docs/devops/local-stack.md).
+Each service applies its EF Core migrations on startup in Development. The Postman collection at [`docs/api/PayFlow.postman_collection.json`](docs/api/PayFlow.postman_collection.json) exercises every endpoint across the eight services; replay the requests in the order shown in the folders. Full local-stack notes (ports, healthcheck commands, observability sinks) live in [docs/devops/local-stack.md](docs/devops/local-stack.md).
 
 Useful local URLs once everything is up: **Jaeger** at `http://localhost:16686`, **Grafana** at `http://localhost:3000` (admin / admin — service-overview dashboard auto-loaded), **Prometheus** at `http://localhost:9090`, **Seq** at `http://localhost:5341`, **RabbitMQ management** at `http://localhost:15672` (guest / guest).
 

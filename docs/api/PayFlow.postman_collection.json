@@ -1,0 +1,1917 @@
+{
+  "info": {
+    "_postman_id": "a1b2c3d4-payflow-collection-0001",
+    "name": "PayFlow",
+    "description": "Local development collection for the PayFlow stack.\n\n- baseUrl = http://localhost:5050 (Gateway). YARP routes /api/* to the matching service.\n- Demo flow: Register Tenant \u2192 Login \u2192 POST /api/transactions (merchant-facing). Internally Transaction calls Payment over HTTP; the merchant sees only the final result.\n- Login's test script captures `accessToken` into {{token}}; protected requests send `Authorization: Bearer {{token}}` automatically.\n- The Payments group hits /api/payments/charge directly \u2014 that endpoint is internal in real architecture (Transaction calls it) but stays Postman-testable for adapter-level demos.\n- Postgres on host port 5433 (psql -h localhost -p 5433 -U payflow -d payflow).\n\nStart the services with:\n    dotnet run --project src/Services/Identity/PayFlow.Identity.API        # :5001\n    dotnet run --project src/Services/Payment/PayFlow.Payment.API          # :5002\n    dotnet run --project src/Services/Transaction/PayFlow.Transaction.API  # :5003\n    dotnet run --project src/ApiGateway/PayFlow.Gateway                    # :5050\n",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "GET /health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "health"
+              ]
+            },
+            "description": "Liveness probe. Returns 200 OK with body 'Healthy' when the service is up and the DB is reachable."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /health (Reconciliation, direct :5004)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:5004/health",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "5004",
+              "path": [
+                "health"
+              ]
+            },
+            "description": "Reconciliation has no public business endpoints yet (those land with the refund saga in M4.D). The gateway has no /api/reconciliation route, so probe the service directly on its dev port to confirm it boots, applies migrations, and the outbox/Kafka wiring is alive."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /health (Notification, direct :5006)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:5006/health",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "5006",
+              "path": [
+                "health"
+              ]
+            },
+            "description": "Notification liveness."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /health (Webhooks, direct :5007)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:5007/health",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "health"
+              ],
+              "port": "5007"
+            },
+            "description": "Webhooks API health probe; no auth required."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Tenants",
+      "item": [
+        {
+          "name": "Register Tenant \u2014 Happy Path (201)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Acme Payments\",\n  \"slug\": \"acme\",\n  \"adminEmail\": \"admin@acme.test\",\n  \"adminPassword\": \"supersecret\",\n  \"adminDisplayName\": \"Acme Admin\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/tenants",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "tenants"
+              ]
+            },
+            "description": "Registers a tenant + initial admin atomically.\nExpected: 201 Created, Location header, body { tenantId, adminUserId, slug }."
+          },
+          "response": []
+        },
+        {
+          "name": "Register Tenant \u2014 Duplicate Slug (409)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Other Co\",\n  \"slug\": \"acme\",\n  \"adminEmail\": \"other@acme.test\",\n  \"adminPassword\": \"supersecret\",\n  \"adminDisplayName\": \"Other Admin\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/tenants",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "tenants"
+              ]
+            },
+            "description": "Re-sending the same slug after the happy path ran.\nExpected: 409 Conflict, ValidationProblemDetails with errors.Slug = [\"TENANT_SLUG_TAKEN\"]. Same body shape as 422s \u2014 only status differs."
+          },
+          "response": []
+        },
+        {
+          "name": "Register Tenant \u2014 Invalid Email (422)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Globex\",\n  \"slug\": \"globex\",\n  \"adminEmail\": \"not-an-email\",\n  \"adminPassword\": \"supersecret\",\n  \"adminDisplayName\": \"Globex Admin\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/tenants",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "tenants"
+              ]
+            },
+            "description": "Email shape check inside the Domain VO.\nExpected: 422 ValidationProblemDetails, errors.AdminEmail = [\"EMAIL_INVALID\"]."
+          },
+          "response": []
+        },
+        {
+          "name": "Register Tenant \u2014 Short Password (422 FluentValidation)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Initech\",\n  \"slug\": \"initech\",\n  \"adminEmail\": \"admin@initech.test\",\n  \"adminPassword\": \"short\",\n  \"adminDisplayName\": \"Initech Admin\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/tenants",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "tenants"
+              ]
+            },
+            "description": "Caught by FluentValidation before the command reaches the handler.\nExpected: 422 ValidationProblemDetails, errors.AdminPassword = [\"TOO_SHORT\"]."
+          },
+          "response": []
+        },
+        {
+          "name": "Register Tenant \u2014 Invalid Slug Shape (422)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Spaces Co\",\n  \"slug\": \"Has Spaces\",\n  \"adminEmail\": \"admin@spaces.test\",\n  \"adminPassword\": \"supersecret\",\n  \"adminDisplayName\": \"Spaces Admin\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/tenants",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "tenants"
+              ]
+            },
+            "description": "Slug is normalised to lowercase + dashes only; spaces are rejected by the regex inside Tenant.Create.\nExpected: 422 ValidationProblemDetails, errors.Slug = [\"TENANT_SLUG_INVALID\"]."
+          },
+          "response": []
+        },
+        {
+          "name": "Register Tenant \u2014 Empty Name (422)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"\",\n  \"slug\": \"emptyname\",\n  \"adminEmail\": \"admin@emptyname.test\",\n  \"adminPassword\": \"supersecret\",\n  \"adminDisplayName\": \"Admin\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/tenants",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "tenants"
+              ]
+            },
+            "description": "FluentValidation catches the blank Name before the handler runs.\nExpected: 422 ValidationProblemDetails, errors.Name = [\"REQUIRED\"]."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Payments",
+      "item": [
+        {
+          "name": "Charge \u2014 Stripe (Captured)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tenantId\": \"00000000-0000-0000-0000-000000000001\",\n  \"transactionId\": \"00000000-0000-0000-0000-000000000999\",\n  \"providerCode\": \"stripe\",\n  \"amountMinor\": 14990,\n  \"currency\": \"TRY\",\n  \"cardToken\": \"tok_visa\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/payments/charge",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "payments",
+                "charge"
+              ]
+            },
+            "description": "Stripe mock: always Captured (sale flow).\nExpected: 200 OK with status = \"Captured\", providerReference starting with 'ch_'."
+          },
+          "response": []
+        },
+        {
+          "name": "Charge \u2014 Iyzico (Authorized only)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tenantId\": \"00000000-0000-0000-0000-000000000001\",\n  \"transactionId\": \"00000000-0000-0000-0000-000000000999\",\n  \"providerCode\": \"iyzico\",\n  \"amountMinor\": 14990,\n  \"currency\": \"TRY\",\n  \"cardToken\": \"tok_visa\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/payments/charge",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "payments",
+                "charge"
+              ]
+            },
+            "description": "Iyzico mock: returns Authorized only (its real flow is auth-then-capture).\nExpected: 200 OK with status = \"Authorized\", providerReference starting with 'iyz_'."
+          },
+          "response": []
+        },
+        {
+          "name": "Charge \u2014 PayPal Captured",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tenantId\": \"00000000-0000-0000-0000-000000000001\",\n  \"transactionId\": \"00000000-0000-0000-0000-000000000999\",\n  \"providerCode\": \"paypal\",\n  \"amountMinor\": 12500,\n  \"currency\": \"TRY\",\n  \"cardToken\": \"tok_visa\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/payments/charge",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "payments",
+                "charge"
+              ]
+            },
+            "description": "PayPal mock with amount NOT ending in 13 or 99.\nExpected: 200 OK with status = \"Captured\"."
+          },
+          "response": []
+        },
+        {
+          "name": "Charge \u2014 PayPal SoftDeclined (amount ends in 13)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tenantId\": \"00000000-0000-0000-0000-000000000001\",\n  \"transactionId\": \"00000000-0000-0000-0000-000000000999\",\n  \"providerCode\": \"paypal\",\n  \"amountMinor\": 10013,\n  \"currency\": \"TRY\",\n  \"cardToken\": \"tok_visa\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/payments/charge",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "payments",
+                "charge"
+              ]
+            },
+            "description": "PayPal mock test gate: amount ending in 13.\nExpected: 200 OK with status = \"SoftDeclined\", declineCode = \"INSUFFICIENT_FUNDS\", providerReference = null. (Routing would fail over to the next provider in the rule.)"
+          },
+          "response": []
+        },
+        {
+          "name": "Charge \u2014 PayPal HardDeclined (amount ends in 99)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tenantId\": \"00000000-0000-0000-0000-000000000001\",\n  \"transactionId\": \"00000000-0000-0000-0000-000000000999\",\n  \"providerCode\": \"paypal\",\n  \"amountMinor\": 20099,\n  \"currency\": \"TRY\",\n  \"cardToken\": \"tok_visa\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/payments/charge",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "payments",
+                "charge"
+              ]
+            },
+            "description": "PayPal mock test gate: amount ending in 99.\nExpected: 200 OK with status = \"HardDeclined\", declineCode = \"DO_NOT_HONOR\". (Routing would stop and not try other providers.)"
+          },
+          "response": []
+        },
+        {
+          "name": "Charge \u2014 Unknown Provider (422)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tenantId\": \"00000000-0000-0000-0000-000000000001\",\n  \"transactionId\": \"00000000-0000-0000-0000-000000000999\",\n  \"providerCode\": \"bitcoin\",\n  \"amountMinor\": 100,\n  \"currency\": \"TRY\",\n  \"cardToken\": \"tok\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/payments/charge",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "payments",
+                "charge"
+              ]
+            },
+            "description": "Expected: 422 ValidationProblemDetails, errors.ProviderCode = [\"PROVIDER_NOT_CONFIGURED\"]."
+          },
+          "response": []
+        },
+        {
+          "name": "Charge \u2014 Negative Amount (422)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tenantId\": \"00000000-0000-0000-0000-000000000001\",\n  \"transactionId\": \"00000000-0000-0000-0000-000000000999\",\n  \"providerCode\": \"stripe\",\n  \"amountMinor\": -1,\n  \"currency\": \"TRY\",\n  \"cardToken\": \"tok\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/payments/charge",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "payments",
+                "charge"
+              ]
+            },
+            "description": "Expected: 422 ValidationProblemDetails, errors.AmountMinor = [\"MUST_BE_POSITIVE\"]."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Login \u2014 Happy Path (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const body = pm.response.json();",
+                  "    pm.collectionVariables.set('token', body.accessToken);",
+                  "    pm.collectionVariables.set('userId', body.userId);",
+                  "    pm.collectionVariables.set('tenantId', body.tenantId);",
+                  "    console.log('token captured into collection variable {{token}}');",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tenantSlug\": \"acme\",\n  \"email\": \"admin@acme.test\",\n  \"password\": \"supersecret\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Expects the tenant + admin created by 'Register Tenant \u2014 Happy Path' to exist.\nExpected: 200 OK with body { accessToken, expiresAt, userId, tenantId }.\nThe test script stores accessToken/userId/tenantId in collection variables so subsequent requests can use them."
+          },
+          "response": []
+        },
+        {
+          "name": "Login \u2014 Wrong Password (401)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tenantSlug\": \"acme\",\n  \"email\": \"admin@acme.test\",\n  \"password\": \"NOT-THE-PASSWORD\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Expected: 401 Unauthorized, code = AUTH_INVALID_CREDENTIALS.\nIdentical response to 'unknown email' and 'unknown tenant slug' \u2014 the endpoint deliberately collapses all credential mismatches into one code so it can't be used as an enumeration oracle."
+          },
+          "response": []
+        },
+        {
+          "name": "Login \u2014 Unknown Tenant (401)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tenantSlug\": \"does-not-exist\",\n  \"email\": \"admin@acme.test\",\n  \"password\": \"supersecret\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Expected: same 401 + AUTH_INVALID_CREDENTIALS as wrong password."
+          },
+          "response": []
+        },
+        {
+          "name": "Login \u2014 Missing Field (422)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tenantSlug\": \"\",\n  \"email\": \"\",\n  \"password\": \"\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "description": "FluentValidation rejects blank fields before the handler runs.\nExpected: 422 with errors map { TenantSlug: [REQUIRED], Email: [REQUIRED], Password: [REQUIRED] }."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/me \u2014 Authenticated",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "me"
+              ]
+            },
+            "description": "Run 'Login \u2014 Happy Path' first so {{token}} is populated.\nExpected: 200 OK with body { userId, tenantId, email, displayName, roles[] } reflecting the JWT's claims."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/me \u2014 No Token (401)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "me"
+              ]
+            },
+            "description": "JwtBearer middleware rejects requests without a valid Authorization header.\nExpected: 401 Unauthorized."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/me \u2014 Garbage Token (401)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer not-a-real-token"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "me"
+              ]
+            },
+            "description": "Malformed or unsigned token fails validation.\nExpected: 401 Unauthorized."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Transactions",
+      "item": [
+        {
+          "name": "Create Transaction \u2014 Happy Path (paypal Captures)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"orderReference\": \"ORD-{{$timestamp}}\",\n  \"amountMinor\": 14990,\n  \"currency\": \"TRY\",\n  \"cardToken\": \"tok_visa\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/transactions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "transactions"
+              ]
+            },
+            "description": "Routing config is [paypal, stripe]. Amount 14990 has no special digits, so paypal captures on the first try.\nExpected: 201 Created, status=\"Captured\", providerCode=\"paypal\", attempts.length == 1."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const body = pm.response.json();",
+                  "    pm.collectionVariables.set(\"transactionId\", body.transactionId);",
+                  "    console.log(\"transactionId captured: \" + body.transactionId);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Transaction \u2014 Failover (paypal Soft \u2192 stripe Capture)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"orderReference\": \"ORD-{{$timestamp}}\",\n  \"amountMinor\": 10013,\n  \"currency\": \"TRY\",\n  \"cardToken\": \"tok_visa\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/transactions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "transactions"
+              ]
+            },
+            "description": "Amount ending in 13 makes the paypal mock SoftDecline. Routing falls over to stripe, which Captures. THIS is intelligent routing \u2014 the merchant never sees the soft decline; the platform's job is to find a provider that says yes.\nExpected: 201, status=\"Captured\", providerCode=\"stripe\", AND attempts.length == 2:\n  attempts[0] = { paypal, SoftDeclined, INSUFFICIENT_FUNDS }\n  attempts[1] = { stripe, Captured }"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Transaction \u2014 Hard Decline Stops Failover",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"orderReference\": \"ORD-{{$timestamp}}\",\n  \"amountMinor\": 20099,\n  \"currency\": \"TRY\",\n  \"cardToken\": \"tok_visa\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/transactions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "transactions"
+              ]
+            },
+            "description": "Amount ending in 99 makes the paypal mock HardDecline. Stripe is NEVER asked \u2014 hard declines say \"the card is bad, trying elsewhere won't help.\"\nExpected: 201 (the API call itself succeeded), status=\"Failed\", failureReason=\"HardDeclined\", providerCode=\"paypal\", attempts.length == 1."
+          },
+          "response": []
+        },
+        {
+          "name": "Create Transaction \u2014 Idempotent Replay (click twice)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "fixed-replay-key-001"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"orderReference\": \"ORD-FIXED-REPLAY-001\",\n  \"amountMinor\": 14990,\n  \"currency\": \"TRY\",\n  \"cardToken\": \"tok_visa\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/transactions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "transactions"
+              ]
+            },
+            "description": "Click TWICE in a row.\n- 1st click: 201 Created. The handler ran, the transaction row was inserted, the response was stored in Redis at idem:{tenant}:/api/transactions:fixed-replay-key-001 with 24h TTL.\n- 2nd click: 201 Created with the SAME transactionId AND a response header `Idempotency-Replayed: true`. The handler did NOT run; the Redis-cached response was returned verbatim. Exactly the retry-safety contract from docs/api/idempotency.md."
+          },
+          "response": []
+        },
+        {
+          "name": "Create Transaction \u2014 Same Key, Different Body (422)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "fixed-replay-key-001"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"orderReference\": \"ORD-DIFFERENT-BODY\",\n  \"amountMinor\": 99999,\n  \"currency\": \"USD\",\n  \"cardToken\": \"tok_other\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/transactions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "transactions"
+              ]
+            },
+            "description": "Run 'Idempotent Replay' first so the fixed key is in Redis.\nThen run this \u2014 same key, different body (different amount + currency + order ref).\nExpected: 422 ProblemDetails with code IDEMPOTENCY_KEY_REUSED_DIFFERENT_BODY. This signals a client-side bug: the same operation-id was used for two different logical operations."
+          },
+          "response": []
+        },
+        {
+          "name": "Create Transaction \u2014 Missing Idempotency-Key (400)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"orderReference\": \"ORD-NOIDEM\",\n  \"amountMinor\": 100,\n  \"currency\": \"TRY\",\n  \"cardToken\": \"tok\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/transactions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "transactions"
+              ]
+            },
+            "description": "Idempotency-Key is required on POST /api/transactions.\nExpected: 400 ProblemDetails with code IDEMPOTENCY_KEY_REQUIRED."
+          },
+          "response": []
+        },
+        {
+          "name": "Create Transaction \u2014 No Token (401)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"orderReference\": \"ORD-no-auth\",\n  \"amountMinor\": 100,\n  \"currency\": \"TRY\",\n  \"cardToken\": \"tok\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/transactions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "transactions"
+              ]
+            },
+            "description": "RequireAuthorization() on the endpoint group rejects this before the handler runs.\nExpected: 401 Unauthorized."
+          },
+          "response": []
+        },
+        {
+          "name": "Create Transaction \u2014 Duplicate Order Reference (409)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"orderReference\": \"ORD-DUP-FIXED-001\",\n  \"amountMinor\": 14990,\n  \"currency\": \"TRY\",\n  \"cardToken\": \"tok_visa\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/transactions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "transactions"
+              ]
+            },
+            "description": "Run twice with different Idempotency-Key but the SAME order_reference (the fixed body).\n- 1st click: 201 Created (idempotency key is fresh, order_reference is also fresh).\n- 2nd click: a fresh Idempotency-Key but the same order_reference \u2014 now the application-level uniqueness check kicks in.\nExpected on 2nd: 409 ValidationProblemDetails, errors.OrderReference = [\"ORDER_REFERENCE_ALREADY_USED\"]. (Idempotency is per-key, order_reference uniqueness is per-tenant.)"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Transaction \u2014 Bad Currency (422)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"orderReference\": \"ORD-{{$timestamp}}\",\n  \"amountMinor\": 14990,\n  \"currency\": \"TURK\",\n  \"cardToken\": \"tok_visa\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/transactions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "transactions"
+              ]
+            },
+            "description": "FluentValidation catches non-3-letter currency.\nExpected: 422 ValidationProblemDetails, errors.Currency = [\"LENGTH_3\"]."
+          },
+          "response": []
+        },
+        {
+          "name": "Create Transaction \u2014 Negative Amount (422)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"orderReference\": \"ORD-{{$timestamp}}\",\n  \"amountMinor\": -1,\n  \"currency\": \"TRY\",\n  \"cardToken\": \"tok_visa\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/transactions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "transactions"
+              ]
+            },
+            "description": "Expected: 422 ValidationProblemDetails, errors.AmountMinor = [\"MUST_BE_POSITIVE\"]."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Refunds",
+      "description": "Refund saga starts here. The Transaction service writes a refund row + the `payflow.refund.requested.v1` outbox event in one SaveChanges; the Reconciliation service (M4 follow-up) consumes that event and walks the rest of the saga.\n\nRun `Create Transaction \u2014 Happy Path` first \u2014 its test script captures `{{transactionId}}` into the collection.",
+      "item": [
+        {
+          "name": "Request Refund \u2014 Happy Path (202 Requested)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amountMinor\": 5000\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/transactions/{{transactionId}}/refunds",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "transactions",
+                "{{transactionId}}",
+                "refunds"
+              ]
+            },
+            "description": "Partial refund (5000 of a 14990 capture). Expected: 202 Accepted, `Location` header to the refund resource, response `status=\"Requested\"`. The outbox interceptor writes `payflow.refund.requested.v1` in the same SaveChanges; Reconciliation picks it up downstream.\n\nNote: the body carries only `amountMinor`. RequestedBy is always sourced from the JWT `sub` claim server-side \u2014 the request type has no audit field so a caller cannot smuggle a free-form string (e.g. an email) into the outbox / Kafka payload."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 202) {",
+                  "    const body = pm.response.json();",
+                  "    pm.collectionVariables.set('refundId', body.refundId);",
+                  "    console.log('refundId captured: ' + body.refundId);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Request Refund \u2014 Amount Exceeds Remaining (422)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amountMinor\": 999999999\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/transactions/{{transactionId}}/refunds",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "transactions",
+                "{{transactionId}}",
+                "refunds"
+              ]
+            },
+            "description": "Requesting a refund larger than the captured amount (counting any in-flight Requested/Processing refunds). Expected: 422 with `errors.AmountMinor = [\"REFUND_AMOUNT_EXCEEDS_REMAINING\"]`."
+          },
+          "response": []
+        },
+        {
+          "name": "Request Refund \u2014 Unknown Transaction (404)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amountMinor\": 1000\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/transactions/11111111-2222-3333-4444-555555555555/refunds",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "transactions",
+                "11111111-2222-3333-4444-555555555555",
+                "refunds"
+              ]
+            },
+            "description": "Refund against a non-existent transaction id. Expected: 404 with `code = TRANSACTION_NOT_FOUND`."
+          },
+          "response": []
+        },
+        {
+          "name": "Request Refund \u2014 Missing Idempotency-Key (400)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amountMinor\": 1000\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/transactions/{{transactionId}}/refunds",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "transactions",
+                "{{transactionId}}",
+                "refunds"
+              ]
+            },
+            "description": "Idempotency middleware applies to all POSTs under /api/transactions, including refunds. Expected: 400 `IDEMPOTENCY_KEY_REQUIRED`."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Refund Status (after saga completes)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/transactions/{{transactionId}}/refunds/{{refundId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "transactions",
+                "{{transactionId}}",
+                "refunds",
+                "{{refundId}}"
+              ]
+            },
+            "description": "Polls the refund. Run \"Request Refund \u2014 Happy Path\" first to populate {{refundId}}; wait a second or two for the saga to walk (Requested \u2192 Processing \u2192 Completed), then this returns the terminal state."
+          },
+          "response": []
+        },
+        {
+          "name": "Payment Refund (direct, debug)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tenantId\": \"{{tenantId}}\",\n  \"transactionId\": \"{{transactionId}}\",\n  \"providerCode\": \"stripe\",\n  \"providerReference\": \"ch_debug_demo\",\n  \"amountMinor\": 1000,\n  \"currency\": \"TRY\",\n  \"idempotencyKey\": \"debug-saga-1\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "http://localhost:5002/api/payments/refund",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "5002",
+              "path": [
+                "api",
+                "payments",
+                "refund"
+              ]
+            },
+            "description": "Direct hit on the Payment service refund endpoint \u2014 bypasses the saga. Useful for: poking the provider mocks directly, verifying the test-card behaviour (paypal: amount % 100 == 13 \u2192 Declined), debugging without Kafka in the loop. Not what merchants use; the real flow is the refund saga."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Reports",
+      "description": "CQRS read-side. Reporting consumes payflow.transaction.* and payflow.refund.completed.v1 from Kafka and projects them into per-tenant, per-day, per-currency buckets. The query endpoint reads those buckets \u2014 tenant scoping comes from the JWT.\n\nRun a few Create Transactions + a Refund Happy Path first to seed the projection, then hit this endpoint.",
+      "item": [
+        {
+          "name": "GET Transactions Summary (last 30 days, all currencies)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:5005/api/reports/transactions/summary",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "5005",
+              "path": [
+                "api",
+                "reports",
+                "transactions",
+                "summary"
+              ]
+            },
+            "description": "Default window: last 30 days UTC, every currency. Reporting runs on port 5005 (no gateway route yet). Expected: 200 with one row per (date, currency) bucket \u2014 attempted / captured / failed counts plus refund counters."
+          },
+          "response": []
+        },
+        {
+          "name": "GET Transactions Summary (currency=TRY only)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:5005/api/reports/transactions/summary?currency=TRY",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "5005",
+              "path": [
+                "api",
+                "reports",
+                "transactions",
+                "summary"
+              ],
+              "query": [
+                {
+                  "key": "currency",
+                  "value": "TRY"
+                }
+              ]
+            },
+            "description": "Same view filtered to a single currency bucket. Pass any 3-letter ISO code; unknown ones return an empty rows array (not an error)."
+          },
+          "response": []
+        },
+        {
+          "name": "GET Transactions Summary (invalid date \u2192 422)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:5005/api/reports/transactions/summary?from=2026/01/01",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "5005",
+              "path": [
+                "api",
+                "reports",
+                "transactions",
+                "summary"
+              ],
+              "query": [
+                {
+                  "key": "from",
+                  "value": "2026/01/01"
+                }
+              ]
+            },
+            "description": "from / to must be ISO yyyy-MM-dd. Anything else \u2192 422 with `errors.from = [\"INVALID_DATE\"]`."
+          },
+          "response": []
+        },
+        {
+          "name": "Reporting Health (direct :5005)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:5005/health",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "5005",
+              "path": [
+                "health"
+              ]
+            },
+            "description": "Reporting liveness \u2014 also the easiest way to confirm migrations applied + the consumer background service is up."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Webhooks",
+      "item": [
+        {
+          "name": "Create Subscription \u2014 Happy Path (201)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"eventType\": \"payflow.transaction.captured.v1\",\n  \"url\": \"https://merchant.example.test/payflow/hook\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "http://localhost:5007/api/webhooks/subscriptions",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "api",
+                "webhooks",
+                "subscriptions"
+              ],
+              "port": "5007"
+            },
+            "description": "Registers a subscription for the calling tenant. Response includes the HMAC secret EXACTLY ONCE \u2014 store it immediately. Subsequent list/get endpoints omit the secret."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const body = pm.response.json();",
+                  "    pm.collectionVariables.set('webhookSubscriptionId', body.id);",
+                  "    pm.collectionVariables.set('webhookSecret', body.secret);",
+                  "    console.log('subscription captured: ' + body.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Subscription \u2014 Non-HTTP URL (422)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"eventType\": \"payflow.refund.completed.v1\",\n  \"url\": \"ftp://merchant.example.test/hook\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "http://localhost:5007/api/webhooks/subscriptions",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "api",
+                "webhooks",
+                "subscriptions"
+              ],
+              "port": "5007"
+            },
+            "description": "Subscription URL must be http or https. Anything else returns 422 ValidationProblem with `Subscription = [URL_SCHEME_UNSUPPORTED]` (propagated from the domain `WebhookSubscription.Create` Result)."
+          },
+          "response": []
+        },
+        {
+          "name": "Create Subscription \u2014 Missing Event Type (422)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"eventType\": \"\",\n  \"url\": \"https://merchant.example.test/hook\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "http://localhost:5007/api/webhooks/subscriptions",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "api",
+                "webhooks",
+                "subscriptions"
+              ],
+              "port": "5007"
+            },
+            "description": "FluentValidation rejects empty event type before the domain constructor runs. Expected: 422 with `eventType` error key."
+          },
+          "response": []
+        },
+        {
+          "name": "List Subscriptions (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:5007/api/webhooks/subscriptions",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "api",
+                "webhooks",
+                "subscriptions"
+              ],
+              "port": "5007"
+            },
+            "description": "Tenant-scoped list. Returns id, eventType, url, isActive, createdAt per subscription. **Secret is intentionally omitted** \u2014 merchants who lose the secret rotate by creating a new subscription."
+          },
+          "response": []
+        },
+        {
+          "name": "Deactivate Subscription (204)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:5007/api/webhooks/subscriptions/{{webhookSubscriptionId}}",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "api",
+                "webhooks",
+                "subscriptions",
+                "{{webhookSubscriptionId}}"
+              ],
+              "port": "5007"
+            },
+            "description": "Soft-delete: the row stays in the DB with `is_active=false` and a `deactivated_at` timestamp for the audit trail; future fan-outs skip it. Run the happy-path above first to capture the id."
+          },
+          "response": []
+        },
+        {
+          "name": "Deactivate Subscription \u2014 Unknown Id (404)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:5007/api/webhooks/subscriptions/00000000-0000-0000-0000-000000000000",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "api",
+                "webhooks",
+                "subscriptions",
+                "00000000-0000-0000-0000-000000000000"
+              ],
+              "port": "5007"
+            },
+            "description": "Tenant scope + id mismatch returns 404 with no body."
+          },
+          "response": []
+        },
+        {
+          "name": "List Deliveries (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:5007/api/webhooks/deliveries?take=100",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "path": [
+                "api",
+                "webhooks",
+                "deliveries"
+              ],
+              "port": "5007",
+              "query": [
+                {
+                  "key": "take",
+                  "value": "100"
+                }
+              ]
+            },
+            "description": "Latest N delivery rows for the tenant. State is one of `Pending` / `Sent` / `Failed`. Use this to debug an integration: a failing endpoint shows up as repeated `Pending` rows with `nextAttemptAt` advancing (exponential backoff, 5 attempts), and a 4xx receiver shows up as `Failed` rows with a status code."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Notifications",
+      "description": "Read-side notification log. The service is consume-only: it tails `payflow.transaction.captured.v1`, `payflow.refund.completed.v1`, and `payflow.refund.failed.v1` from Kafka, renders an email template for each, and writes the audit row in `notification.notifications`. The endpoint below replays whatever the dev `LoggingEmailSender` would have sent.",
+      "item": [
+        {
+          "name": "GET Notifications (latest 50 for tenant)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:5006/api/notifications",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "5006",
+              "path": [
+                "api",
+                "notifications"
+              ]
+            },
+            "description": "Run Create Transaction first to seed a TransactionCaptured notification, then this returns the rendered subject/body/status for the tenant in the JWT."
+          },
+          "response": []
+        },
+        {
+          "name": "GET Notifications (take=5)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:5006/api/notifications?take=5",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "5006",
+              "path": [
+                "api",
+                "notifications"
+              ],
+              "query": [
+                {
+                  "key": "take",
+                  "value": "5"
+                }
+              ]
+            },
+            "description": "Same view with an explicit cap. Server clamps `take` to [1, 200]."
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:5050",
+      "type": "string"
+    },
+    {
+      "key": "token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "userId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "tenantId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "transactionId",
+      "value": ""
+    },
+    {
+      "key": "refundId",
+      "value": ""
+    },
+    {
+      "key": "webhookSubscriptionId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "webhookSecret",
+      "value": "",
+      "type": "string"
+    }
+  ]
+}
