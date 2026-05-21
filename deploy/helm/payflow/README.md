@@ -23,7 +23,14 @@ helm template payflow ./deploy/helm/payflow -f my-values.yaml > rendered.yaml
 helm upgrade --install payflow ./deploy/helm/payflow \
   --namespace payflow --create-namespace \
   -f my-values.yaml
+
+# 4. Smoke-check the release: curls /health on each enabled service.
+helm test payflow --namespace payflow
 ```
+
+`helm test` runs the Pod under `templates/tests/health-probe.yaml`, which hits
+every enabled service via in-cluster DNS and exits non-zero on the first miss.
+The release shows a failed test status if any service is unreachable.
 
 ## What gets installed
 

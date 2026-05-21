@@ -1,0 +1,52 @@
+{{- /*
+  `helm test payflow` post-install smoke check.
+  Spins one Pod that curls /health on every enabled service via the in-cluster
+  DNS name (`payflow-<name>:8080`). Exits non-zero on the first miss so the
+  Helm release shows a failed test status.
+*/ -}}
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ include "payflow.serviceFullname" "health-probe" }}
+  labels:
+    {{- include "payflow.commonLabels" . | nindent 4 }}
+    app.kubernetes.io/component: helm-test
+  annotations:
+    "helm.sh/hook": test
+    # Pod gets cleaned up after the test run regardless of outcome.
+    "helm.sh/hook-delete-policy": hook-succeeded,hook-failed
+spec:
+  restartPolicy: Never
+  containers:
+    - name: probe
+      image: curlimages/curl:8.10.1
+      command:
+        - sh
+        - -c
+        - |
+          set -e
+          fail=0
+          targets="
+          {{- range $name, $svc := .Values.services }}
+          {{- if $svc.enabled }}
+          {{ include "payflow.serviceFullname" $name }}:{{ default $.Values.defaults.service.port (or $svc.service $.Values.defaults.service).port }}
+          {{- end }}
+          {{- end }}
+          "
+          for t in $targets; do
+            printf '%-40s ' "$t/health"
+            if curl --silent --show-error --fail --max-time 5 "http://$t/health" >/dev/null; then
+              echo OK
+            else
+              echo FAIL
+              fail=1
+            fi
+          done
+          exit $fail
+      resources:
+        requests:
+          cpu: 25m
+          memory: 32Mi
+        limits:
+          cpu: 100m
+          memory: 64Mi
