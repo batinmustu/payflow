@@ -34,9 +34,9 @@ The point of this page is not to advertise the stack; it's to make explicit that
 | Tech | Role | Considered | Why this | Trade-off accepted |
 |---|---|---|---|---|
 | **Apache Kafka** | Domain integration events, durable + replayable | RabbitMQ exchanges, NATS JetStream, AWS SNS+SQS | Replay for read-side projections, consumer groups, partitioning by `TenantId` for scale, schema discipline encouraged | Higher operational floor than RabbitMQ; we accept it for the eventing backbone |
-| **RabbitMQ** | Notification retry queue with priorities | Kafka, Hangfire-only | Native priorities, per-message TTL, simple DLX setup | Two brokers to run; rationale in ADR-0003 |
+| **RabbitMQ** | Notification retry queue with per-message TTL + DLX | Kafka-only, in-DB scheduler | Native per-message TTL + dead-letter exchanges give delayed redelivery for free; the wait → work → dlq three-queue topology is a few lines of declaration | Two brokers to run; rationale in ADR-0003 |
 | **Confluent.Kafka** | Kafka .NET client | MassTransit-over-Kafka | Lower-level but transparent: we can see exactly what is sent | More boilerplate; absorbed into `PayFlow.EventBus.Kafka` |
-| **MassTransit** | RabbitMQ abstraction | Direct RabbitMQ.Client | Saga support, retry policies, correlation handling out of the box | Magic when something goes wrong; offset by the simpler messaging shape on this side |
+| **RabbitMQ.Client** | RabbitMQ .NET client | MassTransit-over-RabbitMQ, EasyNetQ | Same reasoning as Kafka: direct over an abstraction lets us see exactly what's published and consumed; the retry/DLQ shape is small enough to own | Manual channel/connection lifecycle in our code (wrapped in `RabbitMqConnectionProvider`) |
 
 ---
 
@@ -47,12 +47,14 @@ The point of this page is not to advertise the stack; it's to make explicit that
 | **MediatR** | In-process CQRS dispatch | Direct service calls, Brighter | Clean separation of command/query handlers, pipeline behaviours for cross-cutting concerns | Indirection is a real cost; we use it only inside Application layers, never as a general event bus |
 | **FluentValidation** | Request validation | DataAnnotations | Composable, testable, supports async rules | Slight learning curve compared to attributes |
 | **Polly** | Retry, circuit breaker, timeout | Hand-rolled | Mature, well-known patterns, integrates with `HttpClientFactory` | One more concept in the stack; pays for itself in payment adapters |
-| **Hangfire** | Recurring jobs (reconciliation) and refund retries | Quartz.NET, raw `BackgroundService` | Persistent jobs across restarts, dashboard for ops, easier than Quartz | SQL-backed storage adds load to the database (small in our case) |
+| **BackgroundService** | In-process recovery sweepers (refund saga, webhook retry, notification retry consumer) | Hangfire, Quartz.NET | Zero infra dependency, fits the "one bounded recovery loop per service" shape, runs in the same process as the consumers it supports | No persistent job dashboard like Hangfire; we trade that for the simpler footprint |
 | **Serilog** | Structured logging | Microsoft.Extensions.Logging only, NLog | Enrichers for tenant/trace context, multiple sinks, JSON output mature | Two logging abstractions in the stack; we keep MEL as the entry point and wire Serilog as provider |
 | **OpenTelemetry** | Tracing + metrics | Vendor SDKs (DataDog, New Relic) | Vendor-neutral, OTLP everywhere, traces follow Kafka headers | Less polished than a paid APM; we accept it for portability |
+| **OTel Collector** | Single OTLP intake; fans traces to Jaeger and exposes metrics scrape endpoint | Services push direct to multiple backends | One pipeline to reason about, processors do the resource → label translation in one place, swapping Jaeger/Prometheus for managed equivalents is a config change | Extra hop in the trace pipeline; negligible at our scale |
 | **Jaeger** | Trace storage and UI | Zipkin, Tempo, paid SaaS | Open source, simple to run locally, OTLP ingest | Storage is volatile; in prod we'd back with ES or replace |
+| **Prometheus** | Metrics store, scrape-based | InfluxDB push, vendor SaaS | Standard metrics datasource Grafana ships defaults for; the collector's prometheus exporter is one config block | Pull model needs network reachability to the collector; trivial in compose / k8s |
+| **Grafana** | Metrics dashboards | Vendor SaaS | Free, runs locally, provisioning files keep the dashboards in git, datasource autoprovisioned at boot | Configuration sprawl if you let it; the chart pins one curated dashboard |
 | **Seq** | Local structured log viewer | ELK, Grafana Loki | One-binary, query language matches Serilog output | Single-tenant; we use it for dev, prod logs go elsewhere |
-| **Grafana** | Metrics dashboards | Vendor SaaS | Free, runs locally, OTLP/Prometheus compatible | Configuration sprawl over time |
 
 ---
 
@@ -85,7 +87,9 @@ The point of this page is not to advertise the stack; it's to make explicit that
 | **Docker** | Container runtime | Podman | Standard | Standard |
 | **docker-compose** | Local stack | Tilt, Skaffold | Lowest-friction onboarding for someone running this from a clean clone | Doesn't scale to prod; we use K8s there |
 | **Kubernetes** | Production runtime | ECS, Nomad | Industry standard, demonstrates the patterns most relevant for a portfolio | Operational complexity; we accept it because the patterns matter |
+| **Helm** | K8s deployment templating | Plain manifests, Kustomize | Umbrella chart pattern fits the "fleet of similar services" shape; per-service values overrides keep `services.<name>.enabled=false` for partial rollouts cheap | Templating layer is extra cognitive load; pays for itself once you're deploying more than three services |
 | **GitHub Actions** | CI/CD | Azure Pipelines, GitLab CI | Free for public repos, sufficient feature set | YAML quirks |
+| **k6** | Load testing | JMeter, Gatling | JS scenarios are easy to read in PRs, constant-arrival-rate executor matches what we want to model, thresholds break the exit code so CI can consume them | Less of an ecosystem than JMeter; we don't need the breadth |
 
 ---
 

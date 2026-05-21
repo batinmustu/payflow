@@ -18,11 +18,11 @@ cd payflow
 # Collector, Prometheus, Grafana)
 docker compose -f deploy/docker-compose.infra.yml up -d
 
-# Services (gateway + 7 services + workers)
-docker compose -f deploy/docker-compose.yml up -d
+# Services (gateway + 7 application services + their in-process workers)
+docker compose -f deploy/docker-compose.prod.yml --env-file deploy/.env up -d
 ```
 
-That's it. The dashboard is at `http://localhost:5050`. The OpenAPI explorers for each service are at `http://localhost:5001..5007/swagger`.
+That's it. The dashboard is at `http://localhost:5050`. When running services on the host (see [below](#running-services-on-the-host-faster-iteration)) the per-service OpenAPI explorers are at `http://localhost:5001..5007/swagger`.
 
 The first run pulls images and applies migrations; expect 2-3 minutes. Subsequent runs are seconds.
 
@@ -30,16 +30,16 @@ The first run pulls images and applies migrations; expect 2-3 minutes. Subsequen
 
 We split into two files on purpose:
 
-- **`docker-compose.infra.yml`** — the long-lived dependencies (Postgres, Kafka, etc.). Started once, kept running. Pulls less frequently.
-- **`docker-compose.yml`** — the application services. Rebuilt every time you `docker compose build` after a code change. The dependencies file is referenced via `extends`.
+- **`docker-compose.infra.yml`** — the long-lived dependencies (Postgres, Kafka, RabbitMQ, observability stack). Started once, kept running. Pulls less frequently.
+- **`docker-compose.prod.yml`** — the application services + their copy of the infrastructure (so the whole stack is reproducible from one file when you want a prod-shaped deploy). Rebuilt every time you `docker compose build` after a code change.
 
-This split means you can leave Kafka and Postgres running between sessions, and only rebuild what you change.
+This split means you can leave Kafka and Postgres running between sessions and only rebuild what you change. For day-to-day dev work the **infra-only** compose plus `dotnet run` on the host (see [below](#running-services-on-the-host-faster-iteration)) is the fastest loop; the prod-shaped file is mainly for image/CI verification.
 
 ## What's in `docker-compose.infra.yml`
 
 | Service | Port | Notes |
 |---|---|---|
-| `postgres` | 5433 (host) → 5432 (container) | Single instance, with `pgvector` extension. Database `payflow` with seven schemas (one per service). Host port is 5433 so a developer's native Postgres on 5432 keeps working. |
+| `postgres` | 5433 (host) → 5432 (container) | Single instance, with `pgvector` extension. Database `payflow` with one schema per service (`identity`, `payment`, `transaction`, `reconciliation`, `reporting`, `notification`, `webhooks`). Host port is 5433 so a developer's native Postgres on 5432 keeps working. |
 | `redis` | 6380 (host) → 6379 (container) | No persistence in dev. Host port is 6380 so a developer's native Redis on 6379 keeps working — same shape as the postgres swap to 5433. |
 | `kafka` | 9092 | Single broker; auto-create topics enabled in dev only. KRaft mode (no ZooKeeper). |
 | `rabbitmq` | 5672, management 15672 | Default guest/guest credentials in dev. |
@@ -52,18 +52,21 @@ This split means you can leave Kafka and Postgres running between sessions, and 
 | `stripe-mock` | 9002 | Mock Stripe API. |
 | `paypal-mock` | 9003 | Mock PayPal API. |
 
-## What's in `docker-compose.yml`
+## Application services (in `docker-compose.prod.yml` and `dotnet run`)
+
+The seven application services share the same port assignment whether you run them in compose or with `dotnet run --urls=…` on the host. Only the gateway is exposed publicly; the rest are reachable on `localhost:<port>` when run on the host, or only over the docker network when in compose.
 
 | Service | Port | What |
 |---|---|---|
 | `gateway` | 5050 | YARP reverse proxy. The only port the host normally needs to expose. Picked over 5000 because macOS uses 5000 for AirPlay Receiver. |
-| `identity` | 5001 | |
-| `payment` | 5002 | |
+| `identity` | 5001 | JWT issuer, tenants/users/roles. |
+| `payment` | 5002 | Provider adapters behind a common `IPaymentProvider`. |
 | `transaction` | 5003 | Hosts the outbox publisher in-process. |
-| `reconciliation` | 5004 | Hangfire dashboard at `localhost:5004/hangfire` |
-| `notification` | 5005 | Worker; HTTP only for health checks. |
-| `reporting` | 5006 | |
-| `ai-assistant` | 5007 | SSE-friendly; no buffering. |
+| `reconciliation` | 5004 | Refund saga consumer + recovery worker (in-process `BackgroundService`). |
+| `reporting` | 5005 | CQRS read-side; consumes Kafka, serves dashboard queries. |
+| `notification` | 5006 | Kafka consumers + RabbitMQ retry consumer (in-process). |
+| `webhooks` | 5007 | Kafka consumers + HMAC-signed merchant deliveries + retry sweeper. |
+| `ai-assistant` | 5008 | Planned (M7). SSE-friendly; no buffering. |
 
 In dev the services run with `ASPNETCORE_ENVIRONMENT=Development`, which enables Swagger UIs and verbose error pages.
 
@@ -140,8 +143,9 @@ The `-v` form wipes Postgres data. Use this when migrations break in a way that'
 
 - Logs: `docker compose logs -f <service>` or Seq at `localhost:5341`.
 - Traces: Jaeger at `localhost:16686`.
+- Metrics: Grafana at `localhost:3000` (admin/admin) — the **PayFlow — Service overview** dashboard is auto-loaded; Prometheus raw queries at `localhost:9090`.
 - Database: `psql -h localhost -U payflow -d payflow` (password in `docker-compose.infra.yml`).
-- Kafka topics: `docker compose exec kafka kafka-topics --bootstrap-server localhost:9092 --list`.
-- Hangfire jobs: `localhost:5004/hangfire`.
+- Kafka topics: `docker compose exec kafka kafka-topics.sh --bootstrap-server localhost:9092 --list`.
+- RabbitMQ retry queues: management UI at `localhost:15672` (guest/guest); `payflow.notification.retry.{wait,work,dlq}`.
 
 For anything else: this doc, then the service-level READMEs, then ask. The first answer for "where is X documented" is the `docs/` folder.

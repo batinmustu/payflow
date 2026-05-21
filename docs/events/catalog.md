@@ -1,6 +1,6 @@
 # Event Catalog
 
-Every integration event published to Kafka. The schemas live in `PayFlow.Contracts`; this file is the human-readable cross-reference.
+Every integration event published to Kafka. Each consuming service re-declares the records it cares about in its own Application layer (see [Bounded contexts — Shared kernel](../architecture/bounded-contexts.md#shared-kernel) for why there is no centralised `Contracts` package); this file is the human-readable cross-reference and the source of truth for schema evolution.
 
 Naming convention: `payflow.<context>.<event-name>.v<n>`. The major version is in the name; backwards-compatible additions do not change it.
 
@@ -72,7 +72,7 @@ Funds are now ours. The settlement event is separate and comes from Reconciliati
 
 Schema identical to `authorized.v1` with `at` reflecting capture time.
 
-**Consumers:** Reporting, Notification, Reconciliation (for next-day matching).
+**Consumers:** Reporting, Notification, Reconciliation (for next-day matching), Webhooks (fan-out to merchant subscriptions).
 
 ### `payflow.transaction.failed.v1`
 
@@ -130,7 +130,7 @@ Published by Reconciliation once it has accepted a `RefundRequested` and started
 
 Reconciliation publishes after the provider-side refund succeeds.
 
-**Consumers:** Transaction (state transition), Reporting, Notification.
+**Consumers:** Transaction (state transition), Reporting, Notification, Webhooks.
 
 ### `payflow.refund.failed.v1`
 
@@ -142,7 +142,7 @@ Reconciliation publishes after the provider-side refund succeeds.
 | `failure_reason` | string | provider-normalised |
 | `at` | timestamp | |
 
-**Consumers:** Transaction, Notification.
+**Consumers:** Transaction, Notification, Webhooks.
 
 ---
 

@@ -49,7 +49,7 @@ The resolution rules:
 1. Every protected endpoint requires a JWT with a `tid` claim. The gateway rejects requests without one before they ever reach a service.
 2. The tenant middleware runs as the first thing inside the request pipeline after authentication. It reads `tid` and writes it into a scoped `ITenantContext`.
 3. There is no other source. Query strings, headers, body fields claiming "for tenant X" are never honoured. A bug that lets a request body specify the tenant is a P0 incident, not a misconfiguration.
-4. Background workers (Hangfire jobs, Kafka consumers) construct their own `ITenantContext` from the event payload's `TenantId`, since they do not have a JWT. The mechanism is the same: the value is set once, before any DB call, and read by the global filter.
+4. Background workers (Kafka consumers, the refund saga recovery sweeper, the notification retry consumer, the webhook retry sweeper) construct their own `ITenantContext` from the event payload's or audit row's `TenantId`, since they do not have a JWT. The mechanism is the same: the value is set once, before any DB call, and read by the global filter.
 
 ## How the filter is applied
 

@@ -87,16 +87,9 @@ sequenceDiagram
 
 ### Provider returns transient failure
 
-Payment's adapter classifies the response. Transient (5xx, timeout, rate limit) bubbles up as `ProviderUnavailable`. Reconciliation's saga catches it, stays in `Processing`, and schedules a retry via Hangfire with the backoff:
+Payment's adapter classifies the response. Transient (5xx, timeout, rate limit) bubbles up as `ProviderUnavailable`. Reconciliation's saga catches it, leaves the saga row in `ProviderCalled` with `attempt_count++`, and an in-process **recovery sweeper** (`RefundSagaRecoveryService`, a `BackgroundService` in the Reconciliation API process) re-attempts on a 60-second tick. Each tick pulls aged-out `ProviderCalled` rows older than a 30-second grace window, claims them by bumping the attempt counter again, and re-runs the same provider call through the shared `RefundSagaProcessor`. The retry budget is bounded by `RefundSaga.MaxAttempts`; once it's exhausted the saga moves to terminal `Failed`.
 
-| Attempt | Delay |
-|---|---|
-| 1 → 2 | 1 minute |
-| 2 → 3 | 5 minutes |
-| 3 → 4 | 30 minutes |
-| 4 → 5 | 2 hours |
-| 5 → 6 | 6 hours |
-| 6+ | terminal — saga → Failed |
+The grace window keeps a fresh attempt that's still in flight from being snatched by the sweeper. The list query and the gate are covered by integration test `ListStuckProviderCalledAsync_returns_aged_pending_sagas_only` in `PayFlow.Reconciliation.IntegrationTests`.
 
 The retry budget for refunds is more generous than for outbox publishing because the "right" outcome of the refund is much more important than the latency of getting there.
 

@@ -14,9 +14,10 @@ The terms used here (Customer/Supplier, Conformist, Anti-Corruption Layer, Share
 | **Payment** | Core | Provider adapters, per-provider attempts, provider credentials | Whether a charge "should" happen. Just answers "did this provider accept this card right now?" |
 | **Transaction** | Core | Transaction lifecycle, idempotency, routing rules, outbox | The provider protocol details. Talks to Payment via integration events and a thin internal API. |
 | **Reconciliation** | Core | Daily statements, reconciliation runs, mismatches, refund saga coordination | Real-time transaction creation. It is strictly a downstream observer + scheduled job runner. |
-| **Notification** | Generic supporting | Templates, delivery attempts, channel-specific routing (email/SMS) | The event payloads themselves. Treats them as opaque sources of template variables. |
+| **Notification** | Generic supporting | Templates, delivery attempts, channel-specific routing (email/SMS), RabbitMQ-backed retry budget | The event payloads themselves. Treats them as opaque sources of template variables. |
 | **Reporting** | Supporting | Read-side projections, dashboard query endpoints | Authoritative state. Always derived from the eventing layer. Always eventually consistent. |
-| **AI Assistant** | Differentiating | Conversations, embeddings, RAG pipeline | Any business decision. Read-only with respect to the rest of the system. |
+| **Webhooks** | Generic supporting | Merchant-facing subscriptions, HMAC-signed deliveries, per-delivery retry budget, audit trail | The Kafka event schema itself — it fans out whatever the producers ship. |
+| **AI Assistant** | Differentiating | Conversations, embeddings, RAG pipeline | Any business decision. Read-only with respect to the rest of the system. (Planned — M7.) |
 
 The "classification" column matters: it tells reviewers where complexity is allowed. Custom code in the **Transaction** context (core) gets careful design review; a clever abstraction in **Notification** (generic supporting) is a smell — that context should look boring.
 
@@ -37,22 +38,26 @@ flowchart LR
     REC["Reconciliation<br/><i>core</i>"]:::core
     NOTIF["Notification<br/><i>generic</i>"]:::generic
     REPORT["Reporting<br/><i>supporting</i>"]:::supporting
-    AI["AI Assistant<br/><i>differentiating</i>"]:::supporting
+    WH["Webhooks<br/><i>generic</i>"]:::generic
+    AI["AI Assistant<br/><i>differentiating</i><br/>(planned M7)"]:::supporting
 
     IYZ["Iyzico"]:::external
     STR["Stripe"]:::external
     PPL["PayPal"]:::external
     LLM["OpenAI / Claude"]:::external
+    MERCH["Merchant backends"]:::external
 
     IDENT -- "OHS · JWT" --> TX
     IDENT -- "OHS · JWT" --> PAY
     IDENT -- "OHS · JWT" --> REPORT
+    IDENT -- "OHS · JWT" --> WH
     IDENT -- "OHS · JWT" --> AI
 
     TX -- "U/S · internal API" --> PAY
     TX -- "PL · integration events" --> REPORT
     TX -- "PL · integration events" --> NOTIF
     TX -- "PL · integration events" --> REC
+    TX -- "PL · integration events" --> WH
 
     PAY -- "PL · integration events" --> REC
     PAY -- "ACL" --> IYZ
@@ -60,6 +65,10 @@ flowchart LR
     PAY -- "ACL" --> PPL
 
     REC -- "Saga · integration events" --> TX
+    REC -- "PL · integration events" --> NOTIF
+    REC -- "PL · integration events" --> WH
+
+    WH -- "OHS · HMAC-signed POST" --> MERCH
 
     AI -- "ACL" --> LLM
     AI -- "C · read-only query" --> REPORT
@@ -68,7 +77,7 @@ flowchart LR
 Legend:
 
 - **OHS** — Open Host Service. The upstream context exposes a stable, documented contract that any downstream may depend on.
-- **PL** — Published Language. The contract itself: in our case the integration event schemas in `PayFlow.Contracts`.
+- **PL** — Published Language. The contract itself: in our case the integration event schemas catalogued in [docs/events/catalog.md](../events/catalog.md). Each consumer re-declares the records it cares about locally — there is no centralised `Contracts` assembly.
 - **ACL** — Anti-Corruption Layer. The downstream context translates external models into its own and never lets the external model leak through.
 - **U/S** — Upstream/Supplier and downstream/Customer. The supplier sets the contract; the customer adapts to it.
 - **C** — Conformist. Like U/S, but the downstream accepts whatever the upstream produces without asking for changes.
@@ -94,7 +103,7 @@ The thing that *does not* happen here: Transaction does not subscribe to Payment
 
 ### Transaction → Reporting / Notification / Reconciliation (Published Language)
 
-The three downstream consumers of Transaction events are conformists in spirit, but the contract is intentionally a Published Language: versioned schemas in `PayFlow.Contracts`, owned by Transaction, evolved with backwards compatibility rules. The schema list and the versioning rules are in [docs/events/catalog.md](../events/catalog.md).
+The downstream consumers of Transaction events (Reporting, Notification, Reconciliation, Webhooks) are conformists in spirit, but the contract is intentionally a Published Language: versioned event schemas catalogued at [docs/events/catalog.md](../events/catalog.md), owned by Transaction, evolved with backwards compatibility rules. Each consumer re-declares its own read-model of the events it cares about — the trade is loose build-time coupling at the cost of a small amount of record-type duplication; see the [Shared kernel](#shared-kernel) section below.
 
 If a consumer wants a new field, the negotiation is: add it as optional, ship the producer first, ship the consumer second. We do not branch the schema per consumer.
 
@@ -116,9 +125,15 @@ The refund flow is the one place a downstream context drives a change back into 
 
 No shared transaction, no orchestrator, no API call back into Transaction from a downstream context. Each step is idempotent. The full flow is in [docs/flows/refund-saga.md](../flows/refund-saga.md).
 
+### Webhooks → Merchant backends (Open Host Service)
+
+Webhooks is an Open Host Service in the **outbound** direction: PayFlow publishes a documented contract (event schema + HMAC-SHA256 signature header) and any merchant who follows it can receive events. The contract — endpoints, payload shape, signature verification, retry behaviour — lives in [docs/api/webhooks.md](../api/webhooks.md).
+
+Importantly, Webhooks does not introduce a new published language: it republishes the same Kafka events its peers consume, wrapped in a small `{ id, eventType, occurredAt, data }` envelope. Adding a new event type to the catalogue makes it automatically available to subscribers without any Webhooks code change beyond binding a new Kafka consumer.
+
 ### AI Assistant → Reporting (Conformist, read-only)
 
-The assistant needs aggregate-level facts to answer tenant questions ("how many failed payments did I have last week?"). It reads from Reporting's projections, treats them as truth, and never writes back. If Reporting changes a column, the assistant adapts. This is the cheapest relationship in the system and we want to keep it that way.
+The assistant needs aggregate-level facts to answer tenant questions ("how many failed payments did I have last week?"). It reads from Reporting's projections, treats them as truth, and never writes back. If Reporting changes a column, the assistant adapts. This is the cheapest relationship in the system and we want to keep it that way. (M7 — currently planned, not implemented.)
 
 ### AI Assistant → LLM provider (Anti-Corruption Layer)
 
@@ -126,15 +141,15 @@ OpenAI and Claude have different request shapes, streaming protocols, and token-
 
 ---
 
-## Shared kernels
+## Shared kernel
 
-There are exactly two shared kernels, both deliberately small:
+There is one shared kernel, deliberately small:
 
-**`PayFlow.SharedKernel`** — the `Result<T>` type, `BaseEntity`, `DomainEvent` base class, `Money` value object, a few error-code primitives. Anything in here is a change that requires touching every service, so the bar for additions is high.
+**`PayFlow.SharedKernel`** — the `Result<T>` type, `AggregateRoot<T>`, `DomainEvent` base class, `Money` value object, a few error-code primitives. Anything in here is a change that requires touching every service, so the bar for additions is high.
 
-**`PayFlow.Contracts`** — the integration event schemas. Owned by the producing service but linked by consumers. We accept that this couples consumers to producers at the compilation step in exchange for compile-time guarantees about message shape. The trade is documented in ADR-0003.
+Integration event schemas are **not** centralised in a shared `Contracts` assembly. Each consumer re-declares the records it cares about in its own Application layer (e.g. `PayFlow.Notification.Application.Notifications.IntegrationEvents` and `PayFlow.Webhooks.Application.Deliveries.IntegrationEvents` each define their own copy of `TransactionCapturedIntegrationEvent`). The trade is intentional: producers can evolve the schema (add an optional field, bump major version on a topic) without a coordinated rebuild across every consumer's deployment. The cost is a small amount of duplication; the gain is loose coupling at the build level. Schema discipline is enforced via the [event catalogue](../events/catalog.md) and the versioning rules at the bottom of it, not at compile time.
 
-A common mistake when starting a microservices codebase is to grow a shared "Common" library that ends up holding half the domain. We will reject PRs that add domain types here — they belong inside a service.
+A common mistake when starting a microservices codebase is to grow a shared "Common" library that ends up holding half the domain. We will reject PRs that add domain types to `SharedKernel` — they belong inside a service. The same applies to event records: each consumer owns its read-model.
 
 ---
 
@@ -142,6 +157,6 @@ A common mistake when starting a microservices codebase is to grow a shared "Com
 
 - **Observability** (Serilog, OpenTelemetry, Jaeger) is not a context. It's infrastructure code wired up identically in every service. Treating it as a context would imply it has a domain language to negotiate, and it doesn't.
 - **API Gateway** is a deployment artefact, not a context. It owns no business state, no aggregates, no events. It validates JWTs and forwards.
-- **Outbox** is also not a context — it's a pattern implemented as a library and reused. The Transaction service is the *only* current producer that needs it; if Payment grows event-publishing needs in the future, it will use the same library.
+- **Outbox** is also not a context — it's a pattern implemented as a library and reused. Currently used by Transaction, Payment, and Reconciliation (every service that publishes integration events).
 
 If something looks like it might be a new context, the test is: does it have a model and a language that doesn't fit any existing one? If yes, name it and add it here. If no, it's a feature of an existing context.

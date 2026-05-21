@@ -1,5 +1,7 @@
 # RAG Architecture
 
+> **Status: design doc — M7, not yet implemented.** The AI Assistant service is the last milestone on the roadmap. The document below is the shape we want to ship, written before the code, and is the contract a reviewer can hold the implementation to once it lands. Hangfire / specific schedules / pgvector index choices in here are the target, not the current state.
+
 The AI Assistant's retrieval-augmented generation pipeline, end to end. Two pipelines really: ingestion (background, batched) and query (online, latency-sensitive). They share the vector store but nothing else.
 
 This doc covers both pipelines end-to-end — the offline ingestion side and the online query side.

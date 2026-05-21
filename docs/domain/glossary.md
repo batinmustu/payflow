@@ -77,7 +77,7 @@ This is the bounded context that owns the lifecycle of "an attempt to take money
 | Term | Definition |
 |---|---|
 | **Domain Event** | An in-process event raised by an aggregate after a state change. Stays inside the service that produced it. Never published to Kafka directly. |
-| **Integration Event** | A versioned, cross-service event published to Kafka. Built by mapping one or more Domain Events. The contract lives in `PayFlow.Contracts` and is treated as a public API. |
+| **Integration Event** | A versioned, cross-service event published to Kafka. Built by mapping one or more Domain Events. The contract is catalogued in [docs/events/catalog.md](../events/catalog.md) and treated as a public API; each consumer re-declares the records it cares about locally rather than depending on a shared `Contracts` assembly. |
 | **Outbox Message** | A row in the `outbox_messages` table written in the same DB transaction as the business state change. A background worker reads from here and publishes the corresponding Integration Event to Kafka. The mechanism that makes "publish on commit" actually safe. |
 | **Saga** | A multi-step cross-service workflow coordinated through Integration Events (choreography, not orchestration). Refunds are the main saga. |
 | **Correlation ID** | An ID that follows a single business operation across all services and messages. Lives in the `traceparent` HTTP header and in Kafka message headers. |

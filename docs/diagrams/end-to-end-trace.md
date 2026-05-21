@@ -16,6 +16,7 @@ sequenceDiagram
     participant R as Reconciliation (5004)
     participant P as Payment (5002)
     participant N as Notification (5006)
+    participant W as Webhooks (5007)
     participant Rep as Reporting (5005)
 
     U->>TX: POST /api/transactions/{id}/refunds<br/>X-Correlation-Id: cid-42
@@ -41,6 +42,7 @@ sequenceDiagram
     K->>TX: refund.processing<br/>Refund → Processing
     K->>TX: refund.completed<br/>Refund → Completed,<br/>Transaction → PartiallyRefunded
     K->>N: refund.completed → email log
+    K->>W: refund.completed → HMAC-signed POST<br/>per active subscription
     K->>Rep: refund.completed → daily_summary++
 ```
 
@@ -81,5 +83,6 @@ open "http://localhost:16686/search?service=payflow-transaction&lookback=5m"
 ```
 
 Search `service=payflow-transaction` and pick the trace that lists
-`payflow-payment`, `payflow-reconciliation`, `payflow-reporting`, and
-`payflow-notification` in its process list. That's the one.
+`payflow-payment`, `payflow-reconciliation`, `payflow-reporting`,
+`payflow-notification`, and `payflow-webhooks` in its process list.
+That's the one.

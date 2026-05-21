@@ -81,6 +81,6 @@ Three are worth naming at this level:
 
 ## What this diagram does not show
 
-- Internal services (gateway, identity, payment, transaction, reconciliation, notification, reporting, AI assistant) — those are Level 2 in [c4-container.md](c4-container.md).
-- Observability sinks (Jaeger, Seq, Grafana) — those are infrastructure, not actors.
+- Internal services (gateway, identity, payment, transaction, reconciliation, notification, reporting, webhooks, AI assistant) — those are Level 2 in [c4-container.md](c4-container.md).
+- Observability sinks (OTel Collector, Jaeger, Prometheus, Grafana, Seq) — those are infrastructure, not actors.
 - The merchant's own infrastructure beyond "their backend calls our API" — we treat it as a black box.
