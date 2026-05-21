@@ -18,6 +18,7 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="PayFlow.Reconciliation.UnitTests" />
+    <InternalsVisibleTo Include="PayFlow.Reconciliation.IntegrationTests" />
   </ItemGroup>
 
 </Project>

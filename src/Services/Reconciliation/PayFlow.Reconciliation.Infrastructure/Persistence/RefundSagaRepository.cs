@@ -23,4 +23,19 @@ internal sealed class RefundSagaRepository : IRefundSagaRepository
         ArgumentNullException.ThrowIfNull(saga);
         await _db.Set<RefundSaga>().AddAsync(saga, ct);
     }
+
+    public async Task<IReadOnlyList<RefundSaga>> ListStuckProviderCalledAsync(
+        DateTimeOffset staleSince,
+        int maxAttempts,
+        int take,
+        CancellationToken ct)
+    {
+        return await _db.Set<RefundSaga>()
+            .Where(s => s.State == RefundSagaState.ProviderCalled
+                     && s.AttemptCount < maxAttempts
+                     && s.StartedAt <= staleSince)
+            .OrderBy(s => s.StartedAt)
+            .Take(take)
+            .ToListAsync(ct);
+    }
 }

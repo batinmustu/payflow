@@ -6,8 +6,10 @@ using PayFlow.EventBus.Kafka;
 using PayFlow.Multitenancy;
 using PayFlow.Outbox;
 using PayFlow.Reconciliation.Application.Abstractions;
+using PayFlow.Reconciliation.Application.RefundSagas;
 using PayFlow.Reconciliation.Infrastructure.Payments;
 using PayFlow.Reconciliation.Infrastructure.Persistence;
+using PayFlow.Reconciliation.Infrastructure.RefundSagas;
 
 namespace PayFlow.Reconciliation.Infrastructure;
 
@@ -37,6 +39,7 @@ public static class DependencyInjection
 
         services.AddScoped<IUnitOfWork, UnitOfWork>();
         services.AddScoped<IRefundSagaRepository, RefundSagaRepository>();
+        services.AddScoped<RefundSagaProcessor>();
 
         services.Configure<PaymentServiceOptions>(configuration.GetSection(PaymentServiceOptions.SectionName));
         services.AddSingleton<IServiceTokenIssuer, ServiceTokenIssuer>();
@@ -55,6 +58,10 @@ public static class DependencyInjection
         services.AddPayFlowKafkaOutboxPublisher(configuration);
         services.AddPayFlowOutbox<ReconciliationDbContext>(configuration);
         services.AddPayFlowKafkaConsuming(configuration);
+
+        // Periodic recovery for sagas stuck in ProviderCalled — drains the
+        // retry budget when a transient failure leaves the saga mid-flight.
+        services.AddHostedService<RefundSagaRecoveryService>();
 
         return services;
     }

@@ -10,4 +10,18 @@ public interface IRefundSagaRepository
     Task<RefundSaga?> GetAsync(Guid tenantId, Guid sagaId, CancellationToken ct);
 
     Task AddAsync(RefundSaga saga, CancellationToken ct);
+
+    /// <summary>
+    /// Returns sagas stuck in <c>ProviderCalled</c> whose last activity is
+    /// older than <paramref name="staleSince"/> and that still have retry
+    /// budget left. The recovery worker drains this list and re-calls the
+    /// provider — without it a transient failure leaves the saga in
+    /// ProviderCalled forever (the original Kafka message is already
+    /// processed, so redelivery wouldn't pick it up).
+    /// </summary>
+    Task<IReadOnlyList<RefundSaga>> ListStuckProviderCalledAsync(
+        DateTimeOffset staleSince,
+        int maxAttempts,
+        int take,
+        CancellationToken ct);
 }
