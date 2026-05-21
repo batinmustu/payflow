@@ -125,6 +125,13 @@ services:
     extraEnv:
       ConnectionStrings__NotificationDb: "Host=payflow-postgres;Port=5432;Database=$(PG_DB);Username=$(PG_USER);Password=$(PG_PASSWORD)"
 
+  webhooks:
+    enabled: true
+    image:
+      repository: webhooks
+    extraEnv:
+      ConnectionStrings__WebhooksDb: "Host=payflow-postgres;Port=5432;Database=$(PG_DB);Username=$(PG_USER);Password=$(PG_PASSWORD)"
+
   gateway:
     enabled: true
     image:

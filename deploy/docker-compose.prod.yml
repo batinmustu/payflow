@@ -265,6 +265,22 @@ services:
       postgres: { condition: service_healthy }
       kafka: { condition: service_healthy }
 
+  webhooks:
+    <<: *svc-defaults
+    container_name: payflow-prod-webhooks
+    build:
+      context: ..
+      dockerfile: deploy/docker/Dockerfile.service
+      args:
+        PROJECT_DIR: src/Services/Webhooks/PayFlow.Webhooks.API
+        PROJECT_NAME: PayFlow.Webhooks.API
+    environment:
+      <<: *env-defaults
+      ConnectionStrings__WebhooksDb: Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
+    depends_on:
+      postgres: { condition: service_healthy }
+      kafka: { condition: service_healthy }
+
   gateway:
     <<: *svc-defaults
     container_name: payflow-prod-gateway
