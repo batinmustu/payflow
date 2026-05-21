@@ -1,0 +1,137 @@
+# Example Kubernetes manifest for the Transaction service. One file with
+# Deployment + Service + ConfigMap + Secret shape, intentionally minimal —
+# meant to read as a reviewable starting point, not a production template.
+#
+# A full deployment would replicate this pattern for every service, then
+# bundle them in a Helm chart with shared values (image registry, JWT
+# signing key reference, OTLP endpoint, etc.). The PayFlow ConfigMap below
+# corresponds 1:1 to the env vars deploy/docker-compose.prod.yml sets.
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: payflow-shared-config
+  labels:
+    app.kubernetes.io/part-of: payflow
+data:
+  # Shared by every PayFlow service. Per-service overrides live on the
+  # Deployment's envFrom / env list.
+  ASPNETCORE_ENVIRONMENT: "Production"
+  ASPNETCORE_HTTP_PORTS: "8080"
+  Identity__Jwt__Issuer: "PayFlow.Identity"
+  Identity__Jwt__Audience: "PayFlow.Services"
+  Kafka__BootstrapServers: "payflow-kafka:9092"
+  OTEL_EXPORTER_OTLP_ENDPOINT: "http://payflow-otel-collector:4317"
+  Observability__Seq__ServerUrl: "http://payflow-seq:80"
+
+---
+# Secrets that must never sit in git. In a real cluster these come from
+# a vault / sealed-secrets / external-secrets, not a flat YAML; the file
+# below is here only to document the contract.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: payflow-shared-secrets
+  labels:
+    app.kubernetes.io/part-of: payflow
+type: Opaque
+stringData:
+  Identity__Jwt__SigningKey: "REPLACE_ME_WITH_A_REAL_KEY_AT_DEPLOY_TIME"
+  PG_USER: "payflow"
+  PG_PASSWORD: "REPLACE_ME"
+  PG_DB: "payflow"
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payflow-transaction
+  labels:
+    app.kubernetes.io/name: transaction
+    app.kubernetes.io/part-of: payflow
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: transaction
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: transaction
+        app.kubernetes.io/part-of: payflow
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: transaction
+          image: payflow/transaction:latest  # pin to ${GITHUB_SHA} from CI in real deploys
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: payflow-shared-config
+          env:
+            # Connection strings get assembled from the shared secret here so
+            # the database password never lands in plain YAML.
+            - name: PG_USER
+              valueFrom: { secretKeyRef: { name: payflow-shared-secrets, key: PG_USER } }
+            - name: PG_PASSWORD
+              valueFrom: { secretKeyRef: { name: payflow-shared-secrets, key: PG_PASSWORD } }
+            - name: PG_DB
+              valueFrom: { secretKeyRef: { name: payflow-shared-secrets, key: PG_DB } }
+            - name: Identity__Jwt__SigningKey
+              valueFrom: { secretKeyRef: { name: payflow-shared-secrets, key: Identity__Jwt__SigningKey } }
+            - name: ConnectionStrings__TransactionDb
+              value: "Host=payflow-postgres;Port=5432;Database=$(PG_DB);Username=$(PG_USER);Password=$(PG_PASSWORD)"
+            - name: Transaction__PaymentService__BaseUrl
+              value: "http://payflow-payment:8080"
+            - name: Transaction__Idempotency__RedisConnectionString
+              value: "payflow-redis:6379"
+          # /health is the same liveness + readiness endpoint each PayFlow
+          # service exposes. Keep the failureThreshold generous for liveness
+          # so a slow migration on startup doesn't get restart-looped, and
+          # tighter for readiness so traffic stops landing on a stuck pod.
+          livenessProbe:
+            httpGet: { path: /health, port: http }
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            failureThreshold: 6
+          readinessProbe:
+            httpGet: { path: /health, port: http }
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "1"
+              memory: "768Mi"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: payflow-transaction
+  labels:
+    app.kubernetes.io/name: transaction
+    app.kubernetes.io/part-of: payflow
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: transaction
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http

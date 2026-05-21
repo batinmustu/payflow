@@ -1,0 +1,253 @@
+# Production-shaped docker-compose for PayFlow.
+#
+#   cp deploy/.env.example deploy/.env  # fill in placeholders
+#   docker compose -f deploy/docker-compose.prod.yml --env-file deploy/.env up -d --build
+#
+# Differences from docker-compose.infra.yml:
+#   - All 7 PayFlow services are built + run as containers.
+#   - Services join an internal Docker network — they reach each other by
+#     container name (no localhost ports).
+#   - Only the gateway exposes a public port (5050). Everything else is
+#     reachable only from inside the compose network.
+#   - Configuration comes from environment variables, not appsettings JSON
+#     committed to git. See deploy/.env.example for the contract.
+#
+# This is "prod-shaped", not "prod-ready" — no replica set, no TLS termination,
+# no managed secrets, no Kafka cluster. The K8s manifest under deploy/k8s/ is
+# the next step toward a real deployment.
+
+name: payflow-prod
+
+# Two YAML anchors so an individual service can override the environment
+# without triggering a merge cycle: one for service-level defaults, one
+# for the env block.
+
+x-env-defaults: &env-defaults
+  ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Production}
+  ASPNETCORE_HTTP_PORTS: "8080"
+  Identity__Jwt__Issuer: ${PAYFLOW_JWT_ISSUER}
+  Identity__Jwt__Audience: ${PAYFLOW_JWT_AUDIENCE}
+  Identity__Jwt__SigningKey: ${PAYFLOW_JWT_SIGNING_KEY}
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4317
+  Observability__Seq__ServerUrl: http://seq:80
+  Kafka__BootstrapServers: kafka:29092
+
+x-svc-defaults: &svc-defaults
+  restart: unless-stopped
+  networks:
+    - payflow
+
+services:
+
+  # ---- Data + messaging -------------------------------------------------
+
+  postgres:
+    <<: *svc-defaults
+    image: pgvector/pgvector:pg16
+    container_name: payflow-prod-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    <<: *svc-defaults
+    image: redis:7-alpine
+    container_name: payflow-prod-redis
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  kafka:
+    <<: *svc-defaults
+    image: apache/kafka:3.7.2
+    container_name: payflow-prod-kafka
+    environment:
+      KAFKA_NODE_ID: "1"
+      KAFKA_PROCESS_ROLES: "broker,controller"
+      KAFKA_CONTROLLER_QUORUM_VOTERS: "1@localhost:9093"
+      KAFKA_LISTENERS: "PLAINTEXT://:29092,CONTROLLER://:9093"
+      KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://kafka:29092"
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT"
+      KAFKA_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
+      KAFKA_INTER_BROKER_LISTENER_NAME: "PLAINTEXT"
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: "1"
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: "1"
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: "1"
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_NUM_PARTITIONS: "3"
+      CLUSTER_ID: "4L6g3nShT-eMCtK--X86sw"
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --list >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  jaeger:
+    <<: *svc-defaults
+    image: jaegertracing/all-in-one:1.60
+    container_name: payflow-prod-jaeger
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports:
+      - "16686:16686"
+
+  seq:
+    <<: *svc-defaults
+    image: datalust/seq:2024.3
+    container_name: payflow-prod-seq
+    environment:
+      ACCEPT_EULA: "Y"
+    ports:
+      - "5341:80"
+    volumes:
+      - seq-data:/data
+
+  # ---- PayFlow services -------------------------------------------------
+
+  identity:
+    <<: *svc-defaults
+    container_name: payflow-prod-identity
+    build:
+      context: ..
+      dockerfile: deploy/docker/Dockerfile.service
+      args:
+        PROJECT_DIR: src/Services/Identity/PayFlow.Identity.API
+        PROJECT_NAME: PayFlow.Identity.API
+    environment:
+      <<: *env-defaults
+      ConnectionStrings__IdentityDb: Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
+    depends_on:
+      postgres: { condition: service_healthy }
+      seq: { condition: service_started }
+      jaeger: { condition: service_started }
+
+  payment:
+    <<: *svc-defaults
+    container_name: payflow-prod-payment
+    build:
+      context: ..
+      dockerfile: deploy/docker/Dockerfile.service
+      args:
+        PROJECT_DIR: src/Services/Payment/PayFlow.Payment.API
+        PROJECT_NAME: PayFlow.Payment.API
+    environment:
+      <<: *env-defaults
+    depends_on:
+      identity: { condition: service_started }
+
+  transaction:
+    <<: *svc-defaults
+    container_name: payflow-prod-transaction
+    build:
+      context: ..
+      dockerfile: deploy/docker/Dockerfile.service
+      args:
+        PROJECT_DIR: src/Services/Transaction/PayFlow.Transaction.API
+        PROJECT_NAME: PayFlow.Transaction.API
+    environment:
+      <<: *env-defaults
+      ConnectionStrings__TransactionDb: Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
+      Transaction__PaymentService__BaseUrl: http://payment:8080
+      Transaction__Idempotency__RedisConnectionString: redis:6379
+    depends_on:
+      postgres: { condition: service_healthy }
+      kafka: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      payment: { condition: service_started }
+
+  reconciliation:
+    <<: *svc-defaults
+    container_name: payflow-prod-reconciliation
+    build:
+      context: ..
+      dockerfile: deploy/docker/Dockerfile.service
+      args:
+        PROJECT_DIR: src/Services/Reconciliation/PayFlow.Reconciliation.API
+        PROJECT_NAME: PayFlow.Reconciliation.API
+    environment:
+      <<: *env-defaults
+      ConnectionStrings__ReconciliationDb: Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
+      Reconciliation__PaymentService__BaseUrl: http://payment:8080
+    depends_on:
+      postgres: { condition: service_healthy }
+      kafka: { condition: service_healthy }
+      payment: { condition: service_started }
+
+  reporting:
+    <<: *svc-defaults
+    container_name: payflow-prod-reporting
+    build:
+      context: ..
+      dockerfile: deploy/docker/Dockerfile.service
+      args:
+        PROJECT_DIR: src/Services/Reporting/PayFlow.Reporting.API
+        PROJECT_NAME: PayFlow.Reporting.API
+    environment:
+      <<: *env-defaults
+      ConnectionStrings__ReportingDb: Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
+    depends_on:
+      postgres: { condition: service_healthy }
+      kafka: { condition: service_healthy }
+
+  notification:
+    <<: *svc-defaults
+    container_name: payflow-prod-notification
+    build:
+      context: ..
+      dockerfile: deploy/docker/Dockerfile.service
+      args:
+        PROJECT_DIR: src/Services/Notification/PayFlow.Notification.API
+        PROJECT_NAME: PayFlow.Notification.API
+    environment:
+      <<: *env-defaults
+      ConnectionStrings__NotificationDb: Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
+    depends_on:
+      postgres: { condition: service_healthy }
+      kafka: { condition: service_healthy }
+
+  gateway:
+    <<: *svc-defaults
+    container_name: payflow-prod-gateway
+    build:
+      context: ..
+      dockerfile: deploy/docker/Dockerfile.service
+      args:
+        PROJECT_DIR: src/ApiGateway/PayFlow.Gateway
+        PROJECT_NAME: PayFlow.Gateway
+    environment:
+      <<: *env-defaults
+      # YARP routes — pointed at in-network service hostnames + the
+      # container port that ASPNETCORE_HTTP_PORTS pins.
+      ReverseProxy__Clusters__identity-cluster__Destinations__identity-1__Address: http://identity:8080/
+      ReverseProxy__Clusters__payment-cluster__Destinations__payment-1__Address: http://payment:8080/
+      ReverseProxy__Clusters__transaction-cluster__Destinations__transaction-1__Address: http://transaction:8080/
+    ports:
+      - "${GATEWAY_PUBLIC_PORT:-5050}:8080"
+    depends_on:
+      identity: { condition: service_started }
+      transaction: { condition: service_started }
+      payment: { condition: service_started }
+
+networks:
+  payflow:
+    driver: bridge
+
+volumes:
+  postgres-data:
+  kafka-data:
+  seq-data:

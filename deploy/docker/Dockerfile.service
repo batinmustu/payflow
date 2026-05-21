@@ -1,0 +1,59 @@
+# syntax=docker/dockerfile:1.7
+
+# Generic multi-stage Dockerfile for every PayFlow service. Compose / CI
+# passes the path + project name via build args, so the same file works
+# for all 7 services without duplication.
+#
+#   docker build \
+#     --build-arg PROJECT_DIR=src/Services/Identity/PayFlow.Identity.API \
+#     --build-arg PROJECT_NAME=PayFlow.Identity.API \
+#     -f deploy/docker/Dockerfile.service -t payflow/identity:dev .
+
+ARG SDK_IMAGE=mcr.microsoft.com/dotnet/sdk:8.0
+ARG RUNTIME_IMAGE=mcr.microsoft.com/dotnet/aspnet:8.0
+
+# ----- restore + build + publish ---------------------------------------------
+FROM ${SDK_IMAGE} AS build
+ARG PROJECT_DIR
+ARG PROJECT_NAME
+ARG BUILD_CONFIGURATION=Release
+
+WORKDIR /src
+
+# Copy the things `dotnet restore` needs to walk the project graph. Doing
+# this in two passes (refs first, source after) lets the layer cache survive
+# code-only changes for the most expensive step (package restore).
+COPY ["Directory.Build.props", "Directory.Packages.props", "./"]
+COPY [".editorconfig", "./"]
+COPY ["PayFlow.sln", "./"]
+COPY ["src/", "src/"]
+
+RUN dotnet restore "$PROJECT_DIR/$PROJECT_NAME.csproj"
+RUN dotnet publish "$PROJECT_DIR/$PROJECT_NAME.csproj" \
+    -c $BUILD_CONFIGURATION \
+    --no-restore \
+    -o /app/publish \
+    /p:UseAppHost=false
+
+# ----- runtime ----------------------------------------------------------------
+FROM ${RUNTIME_IMAGE} AS runtime
+ARG PROJECT_NAME
+
+# Non-root user — never run the API as root.
+RUN groupadd --system payflow \
+    && useradd --system --gid payflow --uid 10001 --shell /usr/sbin/nologin payflow
+
+WORKDIR /app
+COPY --from=build /app/publish .
+
+# Hand the entrypoint a stable filename so compose / k8s probes can be wired
+# without knowing the project name.
+ENV PROJECT_DLL="$PROJECT_NAME.dll"
+ENV ASPNETCORE_HTTP_PORTS=8080 \
+    DOTNET_RUNNING_IN_CONTAINER=true \
+    DOTNET_EnableDiagnostics=0
+
+USER payflow
+EXPOSE 8080
+
+ENTRYPOINT ["/bin/sh", "-c", "exec dotnet \"$PROJECT_DLL\""]

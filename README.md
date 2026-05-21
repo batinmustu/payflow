@@ -15,8 +15,8 @@ The audience for this repo is *engineers reading the code*. The docs describe th
 | M4 Reconciliation + refund saga                            | ✅    |
 | M5 Reporting (CQRS read-side projections)                  | ✅    |
 | M6 Notification (Kafka-driven email log)                   | ✅    |
-| M8 Observability (Kafka trace propagation + log enrichers) | partial — diagrams + dashboards landing |
-| M9 Deployment (prod compose + CI)                          | pending |
+| M8 Observability (Kafka trace propagation + log enrichers) | ✅    |
+| M9 Deployment (Dockerfiles + prod compose + CI + K8s sample) | ✅  |
 | M7 AI Assistant (RAG over pgvector)                        | pending (sequenced last) |
 
 Six services online (Identity, Payment, Transaction, Reconciliation, Reporting, Notification) behind a YARP gateway. 183 unit + integration tests green. End-to-end traces span every service in one Jaeger view — Kafka is no longer a trace boundary.
@@ -68,6 +68,23 @@ dotnet run --project src/ApiGateway/PayFlow.Gateway                       --urls
 Each service applies its EF Core migrations on startup in Development. The Postman collection at `planning/PayFlow.postman_collection.json` exercises every endpoint; replay the requests in the order shown in the folders. Full local-stack notes (ports, healthcheck commands, observability sinks) live in [docs/devops/local-stack.md](docs/devops/local-stack.md).
 
 Useful local URLs once everything is up: **Jaeger** at `http://localhost:16686`, **Seq** at `http://localhost:5341`, **RabbitMQ management** at `http://localhost:15672` (guest / guest).
+
+## Containerised / production-shaped deploy
+
+Everything above runs the services on the host with `dotnet run`. The `deploy/` folder has the production-shaped layout:
+
+```sh
+# 1. Fill in the secrets contract (JWT signing key, DB password, …)
+cp deploy/.env.example deploy/.env
+$EDITOR deploy/.env
+
+# 2. Build all 7 service images + bring up the full prod-shaped stack
+docker compose -f deploy/docker-compose.prod.yml --env-file deploy/.env up -d --build
+```
+
+Only the gateway exposes a host port (`5050` by default); every other service is reachable only from inside the compose network by container name. The Dockerfile under `deploy/docker/Dockerfile.service` is parametric — one file builds every service via `--build-arg PROJECT_DIR=… PROJECT_NAME=…`. CI exercises this matrix on every push (`.github/workflows/ci.yml`).
+
+A reviewable Kubernetes shape (Deployment + Service + ConfigMap + Secret with non-root + resource limits + liveness/readiness against `/health`) lives at `deploy/k8s/transaction.yaml`. The other services follow the same template.
 
 ## Where to look
 
