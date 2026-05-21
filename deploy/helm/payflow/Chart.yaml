@@ -1,0 +1,25 @@
+apiVersion: v2
+name: payflow
+description: |
+  PayFlow umbrella chart — Deployment + Service per microservice, plus a
+  shared ConfigMap and Secret for the cross-cutting config (JWT signing
+  key, Kafka bootstrap, OTLP endpoint). One chart installs the whole
+  fleet; values.yaml has per-service overrides.
+
+  The chart deliberately does not bundle Postgres / Kafka / RabbitMQ /
+  Jaeger / Seq — production deployments use managed services or
+  separate charts for those. See README.md for the recommended bring-up
+  flow.
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+keywords:
+  - payflow
+  - payment
+  - microservices
+  - dotnet
+home: https://github.com/your-org/payflow
+sources:
+  - https://github.com/your-org/payflow
+maintainers:
+  - name: PayFlow Maintainers

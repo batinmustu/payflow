@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: payflow-shared-config
+  labels:
+    {{- include "payflow.commonLabels" . | nindent 4 }}
+data:
+  ASPNETCORE_ENVIRONMENT: {{ .Values.shared.aspnetcoreEnvironment | quote }}
+  ASPNETCORE_HTTP_PORTS: {{ .Values.shared.aspnetcoreHttpPorts | quote }}
+  Identity__Jwt__Issuer: {{ .Values.shared.jwt.issuer | quote }}
+  Identity__Jwt__Audience: {{ .Values.shared.jwt.audience | quote }}
+  Kafka__BootstrapServers: {{ .Values.shared.kafka.bootstrapServers | quote }}
+  OTEL_EXPORTER_OTLP_ENDPOINT: {{ .Values.shared.observability.otlpEndpoint | quote }}
+  Observability__Seq__ServerUrl: {{ .Values.shared.observability.seqUrl | quote }}
+  {{- with .Values.shared.rabbitmq.connectionString }}
+  {{- if ne . "" }}
+  RabbitMQ__ConnectionString: {{ . | quote }}
+  {{- end }}
+  {{- end }}

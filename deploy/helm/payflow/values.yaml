@@ -1,0 +1,156 @@
+# Default values for the PayFlow umbrella chart.
+# Override any of these with `helm install -f your-values.yaml` or
+# `--set key=value`. The defaults are deployment-shaped — fine to
+# `helm template` against, but production deployments MUST override
+# every value under `secrets:` and the image registry under `image:`.
+
+# ---- Container image ------------------------------------------------------
+
+image:
+  # Defaults assume images are tagged like ghcr.io/payflow/transaction:1.0.0.
+  # Per-service overrides live under `services.<name>.image.*`.
+  registry: ghcr.io/payflow
+  tag: "1.0.0"
+  pullPolicy: IfNotPresent
+  pullSecrets: []
+    # - name: ghcr-pull-secret
+
+# ---- Cross-cutting non-secret config -------------------------------------
+# Rendered into a shared ConfigMap, mounted via envFrom on every service.
+# Per-service envs (set under services.<name>.env) override / extend.
+
+shared:
+  aspnetcoreEnvironment: Production
+  aspnetcoreHttpPorts: "8080"
+
+  jwt:
+    issuer: PayFlow.Identity
+    audience: PayFlow.Services
+
+  kafka:
+    bootstrapServers: payflow-kafka:9092
+
+  rabbitmq:
+    # Empty string → Notification falls back to the no-op retry queue.
+    # Set this to the AMQP URI of the broker to enable retries + DLQ.
+    connectionString: ""
+
+  observability:
+    otlpEndpoint: http://payflow-otel-collector:4317
+    seqUrl: http://payflow-seq:80
+
+# ---- Secrets ------------------------------------------------------------
+# Rendered into a Kubernetes Secret. Replace EVERY default before any real
+# deployment. Production should source these from sealed-secrets /
+# external-secrets / vault instead of plain values.yaml.
+
+secrets:
+  # Minimum 32 bytes for the JWT signing key (HS256). The Identity service
+  # rejects the dev default in Production via JwtSigningKeyGuard.
+  jwtSigningKey: REPLACE_ME_WITH_A_32+_CHAR_KEY
+  pgUser: payflow
+  pgPassword: REPLACE_ME
+  pgDb: payflow
+
+# ---- Per-service overrides ----------------------------------------------
+# Each entry under services.<name> renders a Deployment + Service.
+# Set `enabled: false` to skip a service. `extraEnv` is merged into the
+# container's env list AFTER the shared envFrom block, so it overrides.
+
+defaults:
+  replicas: 2
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 768Mi
+  livenessProbe:
+    httpGet: { path: /health, port: http }
+    initialDelaySeconds: 30
+    periodSeconds: 15
+    failureThreshold: 6
+  readinessProbe:
+    httpGet: { path: /health, port: http }
+    initialDelaySeconds: 5
+    periodSeconds: 5
+    failureThreshold: 3
+  service:
+    type: ClusterIP
+    port: 8080
+
+services:
+  identity:
+    enabled: true
+    image:
+      repository: identity
+    extraEnv:
+      ConnectionStrings__IdentityDb: "Host=payflow-postgres;Port=5432;Database=$(PG_DB);Username=$(PG_USER);Password=$(PG_PASSWORD)"
+
+  payment:
+    enabled: true
+    image:
+      repository: payment
+    extraEnv: {}
+
+  transaction:
+    enabled: true
+    image:
+      repository: transaction
+    extraEnv:
+      ConnectionStrings__TransactionDb: "Host=payflow-postgres;Port=5432;Database=$(PG_DB);Username=$(PG_USER);Password=$(PG_PASSWORD)"
+      Transaction__PaymentService__BaseUrl: http://payflow-payment:8080
+      Transaction__Idempotency__RedisConnectionString: payflow-redis:6379
+
+  reconciliation:
+    enabled: true
+    image:
+      repository: reconciliation
+    extraEnv:
+      ConnectionStrings__ReconciliationDb: "Host=payflow-postgres;Port=5432;Database=$(PG_DB);Username=$(PG_USER);Password=$(PG_PASSWORD)"
+      Reconciliation__PaymentService__BaseUrl: http://payflow-payment:8080
+
+  reporting:
+    enabled: true
+    image:
+      repository: reporting
+    extraEnv:
+      ConnectionStrings__ReportingDb: "Host=payflow-postgres;Port=5432;Database=$(PG_DB);Username=$(PG_USER);Password=$(PG_PASSWORD)"
+
+  notification:
+    enabled: true
+    image:
+      repository: notification
+    extraEnv:
+      ConnectionStrings__NotificationDb: "Host=payflow-postgres;Port=5432;Database=$(PG_DB);Username=$(PG_USER);Password=$(PG_PASSWORD)"
+
+  gateway:
+    enabled: true
+    image:
+      repository: gateway
+    # Only entry-point service — usually exposed via LoadBalancer or Ingress.
+    service:
+      type: ClusterIP
+      port: 8080
+    extraEnv:
+      ReverseProxy__Clusters__identity-cluster__Destinations__identity-1__Address: http://payflow-identity:8080/
+      ReverseProxy__Clusters__payment-cluster__Destinations__payment-1__Address: http://payflow-payment:8080/
+      ReverseProxy__Clusters__transaction-cluster__Destinations__transaction-1__Address: http://payflow-transaction:8080/
+
+# ---- Ingress for the gateway (optional) ---------------------------------
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+    # kubernetes.io/ingress.class: nginx
+    # cert-manager.io/cluster-issuer: letsencrypt
+  hosts:
+    - host: payflow.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+    # - hosts:
+    #     - payflow.example.com
+    #   secretName: payflow-tls
