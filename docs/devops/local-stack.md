@@ -75,18 +75,31 @@ In dev the services run with `ASPNETCORE_ENVIRONMENT=Development`, which enables
 On first run, `docker compose up` triggers:
 
 1. Each service's startup migrations apply. Idempotent — re-runs are no-ops.
-2. Identity seeds the system roles (`admin`, `developer`, `viewer`) and a demo tenant + admin user (`demo@payflow.local` / `demo`).
-3. Payment seeds the three provider definitions and registers mock-provider credentials for the demo tenant.
-4. AI Assistant runs the initial ingestion job over `docs/` (so the assistant can answer questions about itself).
-5. Kafka topics get created on first publish.
+2. Kafka topics get created on first publish.
 
-After this, `localhost:5050` should show a working login form.
+There is **no auto-seeding today**: the schemas come up empty. The first thing you'll do after bring-up is register a tenant + admin user via the Identity API (or replay the **PayFlow** folder in `planning/PayFlow.postman_collection.json`, which walks through register-tenant → login → create-transaction → request-refund → list-reports end-to-end).
 
-## Logging in (dev)
+## Bootstrapping a tenant
 
-Pre-seeded credentials are in `deploy/seed-data/`. The demo tenant is `demo` and the admin password is `demo`. (Yes, it is `demo` / `demo`. Yes, this is dev only. The seed code is gated on the environment.)
+```sh
+# 1. Create a tenant + first admin user.
+curl -X POST http://localhost:5050/api/tenants \
+  -H 'content-type: application/json' \
+  -d '{
+    "name": "Demo Merchant",
+    "slug": "demo",
+    "adminEmail": "demo@payflow.local",
+    "adminPassword": "demo",
+    "adminDisplayName": "Demo Admin"
+  }'
 
-For API integration testing, the demo tenant ships with a long-lived dev API key in `deploy/seed-data/api-keys/dev-key.txt`. Never commit a key with this name from a real environment.
+# 2. Log in to get a JWT.
+curl -X POST http://localhost:5050/api/auth/login \
+  -H 'content-type: application/json' \
+  -d '{"tenantSlug":"demo","email":"demo@payflow.local","password":"demo"}'
+```
+
+The Postman collection at `planning/PayFlow.postman_collection.json` does the same thing and stores the JWT in a collection variable so subsequent requests in the folder pick it up automatically — start there if you want to click through.
 
 ## Running services on the host (faster iteration)
 

@@ -81,6 +81,7 @@ jobs:
           - { name: reconciliation, dir: src/Services/Reconciliation/PayFlow.Reconciliation.API, project: PayFlow.Reconciliation.API }
           - { name: reporting,      dir: src/Services/Reporting/PayFlow.Reporting.API,           project: PayFlow.Reporting.API }
           - { name: notification,   dir: src/Services/Notification/PayFlow.Notification.API,     project: PayFlow.Notification.API }
+          - { name: webhooks,       dir: src/Services/Webhooks/PayFlow.Webhooks.API,             project: PayFlow.Webhooks.API }
           - { name: gateway,        dir: src/ApiGateway/PayFlow.Gateway,                         project: PayFlow.Gateway }
 
     steps:

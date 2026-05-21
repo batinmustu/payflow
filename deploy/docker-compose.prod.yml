@@ -31,6 +31,10 @@ x-env-defaults: &env-defaults
   OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
   Observability__Seq__ServerUrl: http://seq:80
   Kafka__BootstrapServers: kafka:29092
+  # Notification picks up retries when this is set; falls back to the no-op
+  # queue (terminal-fail on first try) when empty. Pointing at the in-network
+  # broker by default — override or blank out if you've moved RabbitMQ off.
+  RabbitMQ__ConnectionString: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASSWORD:-guest}@rabbitmq:5672/
 
 x-svc-defaults: &svc-defaults
   restart: unless-stopped
@@ -96,6 +100,21 @@ services:
       timeout: 5s
       retries: 12
       start_period: 30s
+
+  rabbitmq:
+    <<: *svc-defaults
+    image: rabbitmq:3.13-management-alpine
+    container_name: payflow-prod-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-guest}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-guest}
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
 
   jaeger:
     <<: *svc-defaults
@@ -264,6 +283,7 @@ services:
     depends_on:
       postgres: { condition: service_healthy }
       kafka: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
 
   webhooks:
     <<: *svc-defaults
@@ -311,6 +331,7 @@ networks:
 volumes:
   postgres-data:
   kafka-data:
+  rabbitmq-data:
   seq-data:
   prometheus-data:
   grafana-data:
