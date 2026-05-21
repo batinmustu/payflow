@@ -115,6 +115,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PayFlow.Notification.API", 
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PayFlow.Reconciliation.IntegrationTests", "tests\Services\PayFlow.Reconciliation.IntegrationTests\PayFlow.Reconciliation.IntegrationTests.csproj", "{0DB4E6CA-4422-4968-B904-75F1EF6C56A4}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PayFlow.Notification.UnitTests", "tests\Services\PayFlow.Notification.UnitTests\PayFlow.Notification.UnitTests.csproj", "{77A1B6AA-75E5-4F9B-A751-E9F0407C17E6}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -296,6 +298,10 @@ Global
 		{0DB4E6CA-4422-4968-B904-75F1EF6C56A4}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{0DB4E6CA-4422-4968-B904-75F1EF6C56A4}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{0DB4E6CA-4422-4968-B904-75F1EF6C56A4}.Release|Any CPU.Build.0 = Release|Any CPU
+		{77A1B6AA-75E5-4F9B-A751-E9F0407C17E6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{77A1B6AA-75E5-4F9B-A751-E9F0407C17E6}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{77A1B6AA-75E5-4F9B-A751-E9F0407C17E6}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{77A1B6AA-75E5-4F9B-A751-E9F0407C17E6}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{7B07A325-335D-4B77-9659-88C05FD3ED47} = {9E9980C9-561A-4404-8953-81F9E1A75CA6}
@@ -352,5 +358,6 @@ Global
 		{602143F4-D677-4174-8E22-DF71564780C0} = {93F0E5FB-0654-4A9C-B9A0-B789BAD6682C}
 		{1736DBAC-D386-41C1-961D-96BEF805A79C} = {93F0E5FB-0654-4A9C-B9A0-B789BAD6682C}
 		{0DB4E6CA-4422-4968-B904-75F1EF6C56A4} = {BC169898-C38D-4774-8272-B11E25AFDC88}
+		{77A1B6AA-75E5-4F9B-A751-E9F0407C17E6} = {BC169898-C38D-4774-8272-B11E25AFDC88}
 	EndGlobalSection
 EndGlobal

@@ -21,6 +21,9 @@ internal sealed class NotificationRepository : INotificationRepository
             .Take(take)
             .ToListAsync(ct);
 
+    public Task<NotificationRecord?> GetAsync(Guid notificationId, CancellationToken ct) =>
+        _db.Set<NotificationRecord>().FirstOrDefaultAsync(n => n.Id == notificationId, ct);
+
     public async Task AddAsync(NotificationRecord record, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(record);

@@ -8,9 +8,19 @@ namespace PayFlow.Notification.Domain.Notifications;
 /// shows exactly what the merchant received; the provider call only happens
 /// after the row exists (so a crash before send still leaves a Pending
 /// record that a recovery worker can pick up).
+///
+/// State machine:
+///   Pending --MarkSent--> Sent              (terminal success)
+///   Pending --MarkTransientFailure--> Pending  (retry eligible)
+///   Pending --MarkFailed--> Failed          (terminal — retry budget exhausted)
+///
+/// AttemptCount is incremented on every send attempt, transient or terminal.
 /// </summary>
 public sealed class NotificationRecord : AggregateRoot<Guid>
 {
+    /// <summary>How many provider calls the dispatcher will make before giving up.</summary>
+    public const int MaxAttempts = 5;
+
     public Guid TenantId { get; private set; }
     public NotificationKind Kind { get; private set; }
     public NotificationChannel Channel { get; private set; }
@@ -83,6 +93,26 @@ public sealed class NotificationRecord : AggregateRoot<Guid>
         AttemptCount++;
         FailedAt = DateTimeOffset.UtcNow;
     }
+
+    /// <summary>
+    /// Records a non-terminal send failure: bumps the attempt counter and
+    /// captures the reason, but keeps the record in <c>Pending</c> so the
+    /// retry queue can pick it up again later. Callers must check
+    /// <see cref="AttemptCount"/> against <see cref="MaxAttempts"/> and
+    /// switch to <see cref="MarkFailed"/> once the budget is exhausted.
+    /// </summary>
+    public void MarkTransientFailure(string failureReason)
+    {
+        EnsureState(NotificationState.Pending);
+        ArgumentException.ThrowIfNullOrWhiteSpace(failureReason);
+        FailureReason = failureReason;
+        AttemptCount++;
+        FailedAt = DateTimeOffset.UtcNow;
+    }
+
+    /// <summary>True iff another retry attempt is allowed.</summary>
+    public bool CanRetry =>
+        State == NotificationState.Pending && AttemptCount < MaxAttempts;
 
     private void EnsureState(NotificationState expected)
     {

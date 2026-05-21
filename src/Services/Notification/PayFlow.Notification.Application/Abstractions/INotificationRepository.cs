@@ -9,5 +9,7 @@ public interface INotificationRepository
     Task<IReadOnlyList<NotificationRecord>> ListAsync(
         Guid tenantId, int take, CancellationToken ct);
 
+    Task<NotificationRecord?> GetAsync(Guid notificationId, CancellationToken ct);
+
     Task AddAsync(NotificationRecord record, CancellationToken ct);
 }

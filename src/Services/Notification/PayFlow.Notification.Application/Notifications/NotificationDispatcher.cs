@@ -6,16 +6,28 @@ using PayFlow.Notification.Domain.Notifications;
 namespace PayFlow.Notification.Application.Notifications;
 
 /// <summary>
-/// Shared pipeline every consumer goes through:
-/// <list type="number">
-///   <item>Dedup on <see cref="NotificationRecord.SourceMessageId"/>.</item>
-///   <item>Resolve the recipient via <see cref="ITenantContactResolver"/>.</item>
-///   <item>Render the template ahead of time.</item>
-///   <item>Insert the row in <c>Pending</c>, save.</item>
-///   <item>Hand off to the channel adapter.</item>
-///   <item>Mark <c>Sent</c> / <c>Failed</c> with the result, save again.</item>
+/// Shared pipeline for outgoing notifications. Two entry points:
+/// <list type="bullet">
+///   <item>
+///     <see cref="DispatchAsync"/> — invoked by the Kafka consumers on the
+///     first attempt. Dedupes on <see cref="NotificationRecord.SourceMessageId"/>,
+///     resolves the recipient, renders the body, inserts the row in
+///     <c>Pending</c>, then attempts the send.
+///   </item>
+///   <item>
+///     <see cref="RedispatchAsync"/> — invoked by the retry consumer for a
+///     notification whose previous attempt failed transiently. Re-runs the
+///     channel adapter against the same persisted row.
+///   </item>
 /// </list>
-/// Two SaveChanges so the audit row exists even if the provider call panics.
+///
+/// Both paths funnel into <see cref="AttemptSendAsync"/>, which decides
+/// between transient retry (re-enqueue) and terminal failure (mark
+/// <c>Failed</c> + park on DLQ) once <see cref="NotificationRecord.MaxAttempts"/>
+/// is reached.
+///
+/// The audit row is committed before the provider call so a crash mid-send
+/// still leaves a Pending record that the retry queue can pick up.
 /// </summary>
 public sealed class NotificationDispatcher
 {
@@ -25,6 +37,7 @@ public sealed class NotificationDispatcher
     private readonly IEmailSender _email;
     private readonly ISmsSender _sms;
     private readonly IUnitOfWork _uow;
+    private readonly INotificationRetryQueue _retryQueue;
     private readonly ILogger<NotificationDispatcher> _logger;
 
     public NotificationDispatcher(
@@ -34,6 +47,7 @@ public sealed class NotificationDispatcher
         IEmailSender email,
         ISmsSender sms,
         IUnitOfWork uow,
+        INotificationRetryQueue retryQueue,
         ILogger<NotificationDispatcher> logger)
     {
         _records = records;
@@ -42,6 +56,7 @@ public sealed class NotificationDispatcher
         _email = email;
         _sms = sms;
         _uow = uow;
+        _retryQueue = retryQueue;
         _logger = logger;
     }
 
@@ -96,18 +111,51 @@ public sealed class NotificationDispatcher
         var record = recordResult.Value;
         await _records.AddAsync(record, ct);
         await _uow.SaveChangesAsync(ct);
+        // Audit row committed before send — if the process dies during the
+        // channel call we still have a Pending row to find later.
 
+        await AttemptSendAsync(record, ct);
+    }
+
+    /// <summary>
+    /// Retry path. The retry consumer (Rabbit work queue) calls this with
+    /// the notification id; we re-load the row and run another send attempt.
+    /// </summary>
+    public async Task RedispatchAsync(Guid notificationId, CancellationToken ct)
+    {
+        var record = await _records.GetAsync(notificationId, ct);
+        if (record is null)
+        {
+            _logger.LogWarning(
+                "Retry: notification {NotificationId} not found; dropping message.",
+                notificationId);
+            return;
+        }
+        if (record.State != NotificationState.Pending)
+        {
+            _logger.LogInformation(
+                "Retry: notification {NotificationId} is in {State}; nothing to do.",
+                notificationId, record.State);
+            return;
+        }
+
+        await AttemptSendAsync(record, ct);
+    }
+
+    private async Task AttemptSendAsync(NotificationRecord record, CancellationToken ct)
+    {
         DeliveryResult result;
         try
         {
-            result = channel == NotificationChannel.Sms
-                ? await _sms.SendAsync(new SmsMessage(recipient, rendered.Body), ct)
-                : await _email.SendAsync(new EmailMessage(recipient, rendered.Subject, rendered.Body), ct);
+            result = record.Channel == NotificationChannel.Sms
+                ? await _sms.SendAsync(new SmsMessage(record.Recipient, record.Body), ct)
+                : await _email.SendAsync(
+                    new EmailMessage(record.Recipient, record.Subject, record.Body), ct);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex,
-                "Channel adapter threw for notification {NotificationId}; marking failed.",
+                "Channel adapter threw for notification {NotificationId}; marking attempt failed.",
                 record.Id);
             result = DeliveryResult.Fail("ADAPTER_THREW");
         }
@@ -115,11 +163,35 @@ public sealed class NotificationDispatcher
         if (result.Success)
         {
             record.MarkSent(result.ProviderReference);
+            await _uow.SaveChangesAsync(ct);
+            return;
         }
-        else
+
+        var reason = result.FailureReason ?? "UNKNOWN";
+
+        // attempt this counts as: current AttemptCount + 1.
+        var attemptedNow = record.AttemptCount + 1;
+        if (attemptedNow >= NotificationRecord.MaxAttempts)
         {
-            record.MarkFailed(result.FailureReason ?? "UNKNOWN");
+            // Budget exhausted — terminal.
+            record.MarkFailed(reason);
+            await _uow.SaveChangesAsync(ct);
+
+            _logger.LogWarning(
+                "Notification {NotificationId} exhausted retry budget ({Attempts}/{Max}); parking on DLQ.",
+                record.Id, attemptedNow, NotificationRecord.MaxAttempts);
+            await _retryQueue.ParkOnDlqAsync(record.Id, reason, ct);
+            return;
         }
+
+        // Transient — bump attempt counter, stay Pending, schedule retry.
+        record.MarkTransientFailure(reason);
         await _uow.SaveChangesAsync(ct);
+
+        var nextAttempt = record.AttemptCount + 1; // the *upcoming* retry
+        _logger.LogInformation(
+            "Notification {NotificationId} attempt {Attempt}/{Max} failed ({Reason}); scheduling retry {NextAttempt}.",
+            record.Id, record.AttemptCount, NotificationRecord.MaxAttempts, reason, nextAttempt);
+        await _retryQueue.EnqueueAsync(record.Id, nextAttempt, ct);
     }
 }
