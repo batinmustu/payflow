@@ -129,6 +129,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PayFlow.Webhooks.API", "src
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PayFlow.Webhooks.UnitTests", "tests\Services\PayFlow.Webhooks.UnitTests\PayFlow.Webhooks.UnitTests.csproj", "{CE3ADA6A-4BAD-4907-AAFF-642B0D9A79C7}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PayFlow.Webhooks.IntegrationTests", "tests\Services\PayFlow.Webhooks.IntegrationTests\PayFlow.Webhooks.IntegrationTests.csproj", "{DA299C18-D6FB-43B6-8C66-F0F0085FF6FF}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -334,6 +336,10 @@ Global
 		{CE3ADA6A-4BAD-4907-AAFF-642B0D9A79C7}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{CE3ADA6A-4BAD-4907-AAFF-642B0D9A79C7}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{CE3ADA6A-4BAD-4907-AAFF-642B0D9A79C7}.Release|Any CPU.Build.0 = Release|Any CPU
+		{DA299C18-D6FB-43B6-8C66-F0F0085FF6FF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{DA299C18-D6FB-43B6-8C66-F0F0085FF6FF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{DA299C18-D6FB-43B6-8C66-F0F0085FF6FF}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{DA299C18-D6FB-43B6-8C66-F0F0085FF6FF}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{7B07A325-335D-4B77-9659-88C05FD3ED47} = {9E9980C9-561A-4404-8953-81F9E1A75CA6}
@@ -397,5 +403,6 @@ Global
 		{E28E5B70-5E65-472E-92E0-DC2793D4A463} = {015C11C8-56E3-414C-A117-260BB66299C6}
 		{DCA23517-7675-4FDE-A50D-06BDBEF532B3} = {015C11C8-56E3-414C-A117-260BB66299C6}
 		{CE3ADA6A-4BAD-4907-AAFF-642B0D9A79C7} = {BC169898-C38D-4774-8272-B11E25AFDC88}
+		{DA299C18-D6FB-43B6-8C66-F0F0085FF6FF} = {BC169898-C38D-4774-8272-B11E25AFDC88}
 	EndGlobalSection
 EndGlobal

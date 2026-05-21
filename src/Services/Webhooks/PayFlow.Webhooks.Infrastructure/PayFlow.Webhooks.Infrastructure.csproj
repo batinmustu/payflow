@@ -23,4 +23,8 @@
     <PackageReference Include="Microsoft.Extensions.Http" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="PayFlow.Webhooks.IntegrationTests" />
+  </ItemGroup>
+
 </Project>

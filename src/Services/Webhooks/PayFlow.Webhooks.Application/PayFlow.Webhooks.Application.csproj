@@ -16,4 +16,9 @@
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="PayFlow.Webhooks.UnitTests" />
+    <InternalsVisibleTo Include="PayFlow.Webhooks.IntegrationTests" />
+  </ItemGroup>
+
 </Project>
