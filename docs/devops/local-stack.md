@@ -14,7 +14,8 @@ How to bring up PayFlow on a developer machine. Goal: clone, run two commands, h
 git clone https://github.com/<owner>/payflow.git
 cd payflow
 
-# Infrastructure (Postgres, Redis, Kafka, RabbitMQ, Jaeger, Seq)
+# Infrastructure (Postgres, Redis, Kafka, RabbitMQ, Jaeger, Seq, OTel
+# Collector, Prometheus, Grafana)
 docker compose -f deploy/docker-compose.infra.yml up -d
 
 # Services (gateway + 7 services + workers)
@@ -42,7 +43,10 @@ This split means you can leave Kafka and Postgres running between sessions, and 
 | `redis` | 6380 (host) → 6379 (container) | No persistence in dev. Host port is 6380 so a developer's native Redis on 6379 keeps working — same shape as the postgres swap to 5433. |
 | `kafka` | 9092 | Single broker; auto-create topics enabled in dev only. KRaft mode (no ZooKeeper). |
 | `rabbitmq` | 5672, management 15672 | Default guest/guest credentials in dev. |
-| `jaeger` | UI 16686, OTLP 4317 | Memory backend; traces lost on restart. |
+| `jaeger` | UI 16686 | Memory backend; traces lost on restart. OTLP ingestion now happens via the OTel Collector. |
+| `otel-collector` | OTLP 4317/4318, Prom 8889 | Single OTLP intake for every PayFlow service. Forwards traces to Jaeger, exposes metrics for Prometheus to scrape. |
+| `prometheus` | 9090 | Scrapes the collector every 15s. 24h local retention. |
+| `grafana` | 3000 | UI at `localhost:3000` (admin/admin). Dashboards auto-provisioned from `deploy/observability/grafana/dashboards/`. |
 | `seq` | 5341 | Log aggregator. Web UI at `localhost:5341`. |
 | `iyzico-mock` | 9001 | Mock Iyzico API. |
 | `stripe-mock` | 9002 | Mock Stripe API. |

@@ -28,7 +28,7 @@ x-env-defaults: &env-defaults
   Identity__Jwt__Issuer: ${PAYFLOW_JWT_ISSUER}
   Identity__Jwt__Audience: ${PAYFLOW_JWT_AUDIENCE}
   Identity__Jwt__SigningKey: ${PAYFLOW_JWT_SIGNING_KEY}
-  OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4317
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
   Observability__Seq__ServerUrl: http://seq:80
   Kafka__BootstrapServers: kafka:29092
 
@@ -105,6 +105,51 @@ services:
       COLLECTOR_OTLP_ENABLED: "true"
     ports:
       - "16686:16686"
+
+  otel-collector:
+    <<: *svc-defaults
+    image: otel/opentelemetry-collector-contrib:0.111.0
+    container_name: payflow-prod-otel-collector
+    command: ["--config=/etc/otelcol-contrib/config.yaml"]
+    volumes:
+      - ./observability/otel-collector/config.yaml:/etc/otelcol-contrib/config.yaml:ro
+    depends_on:
+      jaeger:
+        condition: service_started
+
+  prometheus:
+    <<: *svc-defaults
+    image: prom/prometheus:v2.55.1
+    container_name: payflow-prod-prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.retention.time=72h"
+    volumes:
+      - ./observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"
+    depends_on:
+      otel-collector:
+        condition: service_started
+
+  grafana:
+    <<: *svc-defaults
+    image: grafana/grafana:11.3.0
+    container_name: payflow-prod-grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "3000:3000"
+    depends_on:
+      prometheus:
+        condition: service_started
 
   seq:
     <<: *svc-defaults
@@ -251,3 +296,5 @@ volumes:
   postgres-data:
   kafka-data:
   seq-data:
+  prometheus-data:
+  grafana-data:

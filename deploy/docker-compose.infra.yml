@@ -114,13 +114,68 @@ services:
       COLLECTOR_OTLP_ENABLED: "true"
     ports:
       - "16686:16686"    # UI — http://localhost:16686
-      - "4317:4317"      # OTLP gRPC
-      - "4318:4318"      # OTLP HTTP
+    # 4317/4318 are NOT host-published: OTel Collector owns those ports.
+    # The collector forwards traces to jaeger over the docker network.
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:14269/"]
       interval: 10s
       timeout: 5s
       retries: 5
+
+  # OTel Collector is the single OTLP intake for every PayFlow service.
+  # It fans out traces to Jaeger and exports metrics on its own
+  # /metrics endpoint for Prometheus to scrape.
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.111.0
+    container_name: payflow-otel-collector
+    restart: unless-stopped
+    command: ["--config=/etc/otelcol-contrib/config.yaml"]
+    volumes:
+      - ./observability/otel-collector/config.yaml:/etc/otelcol-contrib/config.yaml:ro
+    ports:
+      - "4317:4317"      # OTLP gRPC — services point OTEL_EXPORTER_OTLP_ENDPOINT here
+      - "4318:4318"      # OTLP HTTP
+      - "8889:8889"      # Prometheus scrape endpoint
+    depends_on:
+      jaeger:
+        condition: service_started
+
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    container_name: payflow-prometheus
+    restart: unless-stopped
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.retention.time=24h"
+      - "--storage.tsdb.path=/prometheus"
+    volumes:
+      - ./observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"      # UI — http://localhost:9090
+    depends_on:
+      otel-collector:
+        condition: service_started
+
+  grafana:
+    image: grafana/grafana:11.3.0
+    container_name: payflow-grafana
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+    volumes:
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "3000:3000"      # UI — http://localhost:3000 (admin / admin)
+    depends_on:
+      prometheus:
+        condition: service_started
 
   seq:
     image: datalust/seq:2024.3
@@ -144,3 +199,5 @@ volumes:
   kafka-data:
   rabbitmq-data:
   seq-data:
+  prometheus-data:
+  grafana-data:
